@@ -1,0 +1,20 @@
+{
+  "firestore": {
+    "database": "moa-db",
+    "location": "asia-northeast3",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "모아",
+        "supportEmail": "tjdghks0130@gmail.com"
+      }
+    }
+  }
+}

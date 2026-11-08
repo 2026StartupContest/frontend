@@ -1,30 +1,138 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
+import 'package:flutter_proj/core/theme/app_theme.dart';
+import 'package:flutter_proj/data/gateways.dart';
+import 'package:flutter_proj/models/app_user.dart';
+import 'package:flutter_proj/models/club.dart';
+import 'package:flutter_proj/router/open_launch.dart';
+import 'package:flutter_proj/screens/login_screen.dart';
+import 'package:flutter_proj/widgets/moa_bottom_nav.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:flutter_proj/app/app.dart';
-
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('하단 네비게이션은 다섯 탭과 선택 상태를 그린다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          bottomNavigationBar: MoaBottomNav(selected: MoaTab.home, onSelected: (_) {}),
+        ),
+      ),
+    );
+    expect(find.text('홈'), findsOneWidget);
+    expect(find.text('예약'), findsOneWidget);
+    expect(find.text('출석'), findsOneWidget);
+    expect(find.text('정산'), findsOneWidget);
+    expect(find.text('마이페이지'), findsOneWidget);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const Scaffold(bottomNavigationBar: MoaBottomNav(selected: MoaTab.attendance)),
+      ),
+    );
+    expect(find.byKey(const ValueKey('nav-attendance')), findsOneWidget);
   });
+
+  testWidgets('로그인 화면은 이메일 로그인과 구글 시작하기를 보여 준다', (tester) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: LoginScreen(
+          deps: MoaDependencies(auth: _FakeAuth(), clubs: _FakeClubs()),
+        ),
+      ),
+    );
+    expect(find.text('구글로 시작하기'), findsOneWidget);
+    expect(find.text('회원가입'), findsOneWidget);
+  });
+}
+
+class _FakeAuth implements AuthGateway {
+  @override
+  String? get currentDisplayName => null;
+
+  @override
+  String? get currentEmail => null;
+
+  @override
+  String? get currentUid => null;
+
+  @override
+  Future<void> sendPasswordReset(String email) async {}
+
+  @override
+  Future<void> signInWithEmail({required String email, required String password}) async {}
+
+  @override
+  Future<void> signInWithGoogle() async {}
+
+  @override
+  Future<void> signOut() async {}
+
+  @override
+  Future<void> signUpWithEmail({required String email, required String password, required String name}) async {}
+}
+
+class _FakeClubs implements ClubGateway {
+  @override
+  Future<void> askOwner({required String uid, required String userName, required String clubId}) async {}
+
+  @override
+  Future<void> cancelJoin({required String uid, required String clubId}) async {}
+
+  @override
+  Future<CreatedClub> createClub({
+    required String ownerId,
+    required String ownerName,
+    required String name,
+    required String tagline,
+    required String category,
+    required String joinPolicy,
+    int? feeAmount,
+    ImagePayload? image,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> ensureUser({required String id, required String name, required String email, bool activityAlerts = false}) async {}
+
+  @override
+  Future<ClubPreview?> findByCode(String code) async => null;
+
+  @override
+  Future<AppUser?> getUser(String uid) async => null;
+
+  @override
+  Future<void> joinImmediately({required String uid, required String userName, required Club club}) async {}
+
+  @override
+  Future<LaunchTarget> launchFor(String uid) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<HomeData> loadHome({required String uid, required String clubId}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<PendingView> loadPending({required String uid, required String clubId}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> markNoticesRead(String clubId) async {}
+
+  @override
+  Future<void> requestJoin({
+    required String uid,
+    required String userName,
+    required Club club,
+    required String depositName,
+    required bool feeReported,
+  }) async {}
 }
