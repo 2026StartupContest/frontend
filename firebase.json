@@ -1,10 +1,11 @@
 {
-  "firestore": {
-    "database": "moa-db",
-    "location": "asia-northeast3",
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  },
+  "firestore": [
+    {
+      "database": "moa-db",
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
+    }
+  ],
   "storage": {
     "rules": "storage.rules"
   },

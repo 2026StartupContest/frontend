@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_proj/core/kst.dart';
+import 'package:flutter_proj/core/meeting_filter.dart';
 import 'package:flutter_proj/data/gateways.dart';
 import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/models/club.dart';
@@ -24,8 +26,10 @@ class FirebaseClubService implements ClubGateway {
   final FirebaseFirestore _db;
   final FirebaseStorage _storage;
 
-  CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
-  CollectionReference<Map<String, dynamic>> get _clubs => _db.collection('clubs');
+  CollectionReference<Map<String, dynamic>> get _users =>
+      _db.collection('users');
+  CollectionReference<Map<String, dynamic>> get _clubs =>
+      _db.collection('clubs');
   CollectionReference<Map<String, dynamic>> get _invites =>
       _db.collection('inviteCodes');
 
@@ -49,10 +53,12 @@ class FirebaseClubService implements ClubGateway {
     }
     final data = snap.data() ?? {};
     final updates = <String, dynamic>{};
-    if ((data['name'] as String? ?? '').trim().isEmpty && name.trim().isNotEmpty) {
+    if ((data['name'] as String? ?? '').trim().isEmpty &&
+        name.trim().isNotEmpty) {
       updates['name'] = name.trim();
     }
-    if ((data['email'] as String? ?? '').trim().isEmpty && email.trim().isNotEmpty) {
+    if ((data['email'] as String? ?? '').trim().isEmpty &&
+        email.trim().isNotEmpty) {
       updates['email'] = email.trim();
     }
     if (updates.isNotEmpty) await ref.update(updates);
@@ -66,17 +72,112 @@ class FirebaseClubService implements ClubGateway {
   }
 
   @override
+  Future<ProfileData> loadProfile(String uid) async {
+    final user = await getUser(uid);
+    if (user == null) throw StateError('계정 정보를 불러오지 못했어요.');
+    final mirrors = await _users.doc(uid).collection('memberships').get();
+    final options = <ClubOption>[];
+    for (final mirror in mirrors.docs) {
+      final status = mirror.data()['status'] as String? ?? '';
+      if (status != 'active' && status != 'pending') continue;
+      final club = await _readClub(mirror.id);
+      if (club == null) continue;
+      final mirrorRole = mirror.data()['role'] as String? ?? 'member';
+      options.add(
+        ClubOption(
+          club: club,
+          role: club.ownerId == uid ? 'owner' : mirrorRole,
+          status: status,
+          primary: false,
+        ),
+      );
+    }
+    final activeIds = options
+        .where((option) => !option.isPending)
+        .map((option) => option.club.id)
+        .toSet();
+    final storedPrimary = user.primaryClubId;
+    final primaryId = storedPrimary != null && activeIds.contains(storedPrimary)
+        ? storedPrimary
+        : (activeIds.isEmpty ? null : activeIds.first);
+    return ProfileData(
+      user: user,
+      options: [
+        for (final option in options)
+          ClubOption(
+            club: option.club,
+            role: option.role,
+            status: option.status,
+            primary: option.club.id == primaryId,
+          ),
+      ],
+    );
+  }
+
+  @override
+  Future<void> updateNickname({
+    required String uid,
+    required String nickname,
+  }) async {
+    final trimmed = nickname.trim();
+    if (trimmed.isEmpty) throw StateError('닉네임을 입력해 주세요.');
+    if (trimmed.length > 30) throw StateError('닉네임은 30자까지 입력할 수 있어요.');
+    await _users.doc(uid).update({'nickname': trimmed});
+  }
+
+  @override
+  Future<void> updateActivityAlerts({
+    required String uid,
+    required bool enabled,
+  }) async {
+    await _users.doc(uid).update({'activityAlerts': enabled});
+  }
+
+  @override
+  Future<void> deleteAccountData(String uid) async {
+    final mirrors = await _users.doc(uid).collection('memberships').get();
+    for (final mirror in mirrors.docs) {
+      final club = await _readClub(mirror.id);
+      final member = await _clubs
+          .doc(mirror.id)
+          .collection('members')
+          .doc(uid)
+          .get();
+      final role =
+          member.data()?['role'] as String? ??
+          mirror.data()['role'] as String? ??
+          'member';
+      if (club?.ownerId == uid || role == 'owner') {
+        throw StateError('먼저 회장을 넘겨야 해요.');
+      }
+    }
+    for (final mirror in mirrors.docs) {
+      await removeMember(clubId: mirror.id, userId: uid);
+    }
+    final leftover = await _users.doc(uid).collection('memberships').get();
+    await _deleteRefs(leftover.docs.map((doc) => doc.reference).toList());
+    await _users.doc(uid).delete();
+  }
+
+  @override
   Future<LaunchTarget> launchFor(String uid) async {
     final user = await getUser(uid);
     if (user == null || user.name.trim().isEmpty) {
       return const LaunchTarget(AppRoutes.signup, SignupMode.complete);
     }
     final mirrors = await _users.doc(uid).collection('memberships').get();
-    final active = mirrors.docs.where((doc) => doc.data()['status'] == 'active');
+    final active = mirrors.docs
+        .where((doc) => doc.data()['status'] == 'active')
+        .toList();
     if (active.isNotEmpty) {
-      return LaunchTarget(AppRoutes.home, HomeArgs(active.first.id));
+      final primary = user.primaryClubId;
+      final chosen = active.where((doc) => doc.id == primary);
+      final id = chosen.isEmpty ? active.first.id : chosen.first.id;
+      return LaunchTarget(AppRoutes.home, HomeArgs(id));
     }
-    final pending = mirrors.docs.where((doc) => doc.data()['status'] == 'pending');
+    final pending = mirrors.docs.where(
+      (doc) => doc.data()['status'] == 'pending',
+    );
     if (pending.isNotEmpty) {
       return LaunchTarget(AppRoutes.joinPending, ClubArgs(pending.first.id));
     }
@@ -138,7 +239,7 @@ class FirebaseClubService implements ClubGateway {
 
     var saved = club;
     if (image != null) {
-      final url = await _upload(clubRef.id, image);
+      final url = await _uploadBytes('clubs/${clubRef.id}/cover', image);
       await clubRef.update({'imageUrl': url});
       saved = Club(
         id: club.id,
@@ -228,7 +329,11 @@ class FirebaseClubService implements ClubGateway {
     required String clubId,
   }) async {
     final club = await _readClub(clubId);
-    final memberSnap = await _clubs.doc(clubId).collection('members').doc(uid).get();
+    final memberSnap = await _clubs
+        .doc(clubId)
+        .collection('members')
+        .doc(uid)
+        .get();
     if (club == null || !memberSnap.exists) {
       throw StateError('가입 신청을 찾을 수 없어요.');
     }
@@ -270,25 +375,56 @@ class FirebaseClubService implements ClubGateway {
       throw StateError('동아리 정보를 불러오지 못했어요.');
     }
     final mirrors = await _users.doc(uid).collection('memberships').get();
-    final clubs = <Club>[];
+    final options = <ClubOption>[];
+    String role = 'member';
     for (final mirror in mirrors.docs) {
-      if (mirror.data()['status'] != 'active') continue;
+      final status = mirror.data()['status'] as String? ?? '';
+      if (status != 'active' && status != 'pending') continue;
       final item = await _readClub(mirror.id);
-      if (item != null) clubs.add(item);
+      if (item == null) continue;
+      final mirrorRole = mirror.data()['role'] as String? ?? 'member';
+      if (mirror.id == clubId) role = mirrorRole;
+      options.add(
+        ClubOption(
+          club: item,
+          role: item.ownerId == uid ? 'owner' : mirrorRole,
+          status: status,
+          primary: false,
+        ),
+      );
     }
-    final events = await _mapDocs(
-      _clubs.doc(clubId).collection('events'),
-      (doc) => ClubEvent(
-        id: doc.id,
-        badge: doc.data()['badge'] as String? ?? '',
-        title: doc.data()['title'] as String? ?? '',
-        schedule: doc.data()['schedule'] as String? ?? '',
-        artKicker: doc.data()['artKicker'] as String? ?? '',
-        artTitle: doc.data()['artTitle'] as String? ?? '',
-        attendanceOpen: doc.data()['attendanceOpen'] as bool? ?? false,
-        attendeeInitials: _strings(doc.data()['attendeeInitials']),
-        attendeeSummary: doc.data()['attendeeSummary'] as String? ?? '',
-      ),
+    if (club.ownerId == uid) role = 'owner';
+    if (options.every((option) => option.club.id != club.id)) {
+      options.insert(
+        0,
+        ClubOption(club: club, role: role, status: 'active', primary: false),
+      );
+    }
+    final activeIds = options
+        .where((option) => !option.isPending)
+        .map((option) => option.club.id);
+    final storedPrimary = user.primaryClubId;
+    final primaryId = storedPrimary != null && activeIds.contains(storedPrimary)
+        ? storedPrimary
+        : activeIds.cast<String?>().firstWhere(
+            (id) => id != null,
+            orElse: () => null,
+          );
+    final marked = [
+      for (final option in options)
+        ClubOption(
+          club: option.club,
+          role: option.role,
+          status: option.status,
+          primary: option.club.id == primaryId,
+        ),
+    ];
+    final clubs = marked
+        .where((option) => !option.isPending)
+        .map((option) => option.club)
+        .toList();
+    final events = uniqueMeetings(
+      await _mapDocs(_clubs.doc(clubId).collection('events'), _eventFrom),
     );
     final activities = await _mapDocs(
       _clubs.doc(clubId).collection('activities'),
@@ -306,7 +442,7 @@ class FirebaseClubService implements ClubGateway {
         id: doc.id,
         title: doc.data()['title'] as String? ?? '',
         body: doc.data()['body'] as String? ?? '',
-        createdAt: _date(doc.data()['createdAt']) ?? DateTime.now(),
+        createdAt: _kst(doc.data()['createdAt']) ?? kstNow(),
         unread: doc.data()['unread'] as bool? ?? false,
         kind: doc.data()['kind'] as String? ?? 'info',
       ),
@@ -317,12 +453,16 @@ class FirebaseClubService implements ClubGateway {
         .collection('members')
         .where('status', isEqualTo: 'pending')
         .get();
+    final reported = pending.docs
+        .where((doc) => doc.data()['feeReported'] == true)
+        .length;
+    final unpaid = pending.docs.length - reported;
     final tasks = <HomeTask>[
-      if (club.ownerId == uid && pending.docs.isNotEmpty)
+      if (role == 'owner' && pending.docs.isNotEmpty)
         HomeTask(
           id: 'pending-joins',
           title: '새 가입 요청이 있어요',
-          subtitle: '가입 신청 ${pending.docs.length}명',
+          subtitle: '입금 신고 $reported명 · 미입금 $unpaid명',
           kind: 'join',
           count: pending.docs.length,
         ),
@@ -335,7 +475,460 @@ class FirebaseClubService implements ClubGateway {
       activities: activities,
       notices: notices,
       tasks: tasks,
+      role: role,
+      options: marked.isEmpty
+          ? [
+              ClubOption(
+                club: club,
+                role: role,
+                status: 'active',
+                primary: true,
+              ),
+            ]
+          : marked,
+      primaryClubId: primaryId,
     );
+  }
+
+  @override
+  Future<ClubDesk> loadDesk({
+    required String uid,
+    required String clubId,
+  }) async {
+    final user = await getUser(uid);
+    final club = await _readClub(clubId);
+    if (user == null || club == null) {
+      throw StateError('동아리 정보를 불러오지 못했어요.');
+    }
+    final memberSnap = await _clubs
+        .doc(clubId)
+        .collection('members')
+        .doc(uid)
+        .get();
+    var role = memberSnap.data()?['role'] as String? ?? 'member';
+    if (club.ownerId == uid) role = 'owner';
+    final members = await _mapDocs(_clubs.doc(clubId).collection('members'), (
+      doc,
+    ) {
+      final data = doc.data();
+      return ClubMember(
+        userId: data['userId'] as String? ?? doc.id,
+        userName: data['userName'] as String? ?? '',
+        role: data['role'] as String? ?? 'member',
+        status: data['status'] as String? ?? 'active',
+        duty: data['duty'] as String?,
+        joinedAt: _date(data['joinedAt']) ?? _date(data['requestedAt']),
+        unpaidDues: (data['unpaidDues'] as num?)?.toInt(),
+        unsettledAmount: (data['unsettledAmount'] as num?)?.toInt(),
+      );
+    });
+    final active = members.where((member) => member.status == 'active').toList()
+      ..sort((a, b) {
+        final rank = _roleRank(a.role).compareTo(_roleRank(b.role));
+        if (rank != 0) return rank;
+        return a.userName.compareTo(b.userName);
+      });
+    final requests = members
+        .where((member) => member.status == 'pending')
+        .map(
+          (member) => Membership(
+            clubId: clubId,
+            userId: member.userId,
+            userName: member.userName,
+            role: member.role,
+            status: member.status,
+            feeReported: false,
+            requestedAt: member.joinedAt,
+          ),
+        )
+        .toList();
+    final pendingDocs = await _clubs
+        .doc(clubId)
+        .collection('members')
+        .where('status', isEqualTo: 'pending')
+        .get();
+    final pending =
+        pendingDocs.docs.map((doc) => _memberFrom(clubId, doc)).toList()..sort(
+          (a, b) => (b.requestedAt ?? DateTime(0)).compareTo(
+            a.requestedAt ?? DateTime(0),
+          ),
+        );
+    return ClubDesk(
+      user: user,
+      club: club,
+      myRole: role,
+      members: active,
+      requests: pending.isNotEmpty ? pending : requests,
+    );
+  }
+
+  @override
+  Future<void> setPrimaryClub({
+    required String uid,
+    required String clubId,
+  }) async {
+    await _users.doc(uid).update({'primaryClubId': clubId});
+  }
+
+  @override
+  Future<void> updateClubName({
+    required String clubId,
+    required String name,
+    ImagePayload? image,
+  }) async {
+    final trimmed = name.trim();
+    if (image == null) {
+      await _clubs.doc(clubId).update({'name': trimmed});
+      return;
+    }
+    final url = await _uploadBytes('clubs/$clubId/cover', image);
+    await _clubs.doc(clubId).update({'name': trimmed, 'imageUrl': url});
+  }
+
+  @override
+  Future<void> updateJoinPolicy({
+    required String clubId,
+    required String joinPolicy,
+  }) async {
+    await _clubs.doc(clubId).update({'joinPolicy': joinPolicy});
+  }
+
+  @override
+  Future<void> updateFeeAmount({
+    required String clubId,
+    required int? feeAmount,
+  }) async {
+    if (feeAmount == null) {
+      await _clubs.doc(clubId).update({'feeAmount': FieldValue.delete()});
+      return;
+    }
+    await _clubs.doc(clubId).update({'feeAmount': feeAmount});
+  }
+
+  @override
+  Future<String> reissueInvite({required String clubId}) async {
+    final club = await _readClub(clubId);
+    if (club == null) throw StateError('동아리를 찾을 수 없어요.');
+    final previous = club.inviteCode;
+    if (previous != null && previous.isNotEmpty) {
+      await _invites.doc(previous).delete();
+    }
+    final code = generateInviteCode();
+    final expiresAt = DateTime.now().add(const Duration(days: 30));
+    await _invites.doc(code).set({
+      'clubId': clubId,
+      'expiresAt': Timestamp.fromDate(expiresAt),
+    });
+    await _clubs.doc(clubId).update({
+      'inviteCode': code,
+      'inviteExpiresAt': Timestamp.fromDate(expiresAt),
+    });
+    return code;
+  }
+
+  @override
+  Future<void> setMemberRole({
+    required String clubId,
+    required String userId,
+    required String role,
+  }) async {
+    if (role != 'admin' && role != 'member') {
+      throw StateError('그 역할로는 바꿀 수 없어요.');
+    }
+    final ref = _clubs.doc(clubId).collection('members').doc(userId);
+    final snap = await ref.get();
+    if (!snap.exists) throw StateError('구성원을 찾을 수 없어요.');
+    if (snap.data()?['role'] == 'owner') {
+      throw StateError('회장 역할은 넘기기로만 바꿀 수 있어요.');
+    }
+    final batch = _db.batch();
+    batch.update(ref, {'role': role});
+    batch.update(_users.doc(userId).collection('memberships').doc(clubId), {
+      'role': role,
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> transferOwnership({
+    required String clubId,
+    required String fromUserId,
+    required String toUserId,
+  }) async {
+    final club = await _readClub(clubId);
+    if (club == null || club.ownerId != fromUserId) {
+      throw StateError('회장만 권한을 넘길 수 있어요.');
+    }
+    final target = await _clubs
+        .doc(clubId)
+        .collection('members')
+        .doc(toUserId)
+        .get();
+    if (!target.exists || target.data()?['status'] != 'active') {
+      throw StateError('활동 중인 구성원에게만 넘길 수 있어요.');
+    }
+    final toName = target.data()?['userName'] as String? ?? '';
+    final batch = _db.batch();
+    batch.update(_clubs.doc(clubId), {
+      'ownerId': toUserId,
+      'ownerName': toName,
+    });
+    batch.update(_clubs.doc(clubId).collection('members').doc(fromUserId), {
+      'role': 'admin',
+    });
+    batch.update(_clubs.doc(clubId).collection('members').doc(toUserId), {
+      'role': 'owner',
+    });
+    batch.update(_users.doc(fromUserId).collection('memberships').doc(clubId), {
+      'role': 'admin',
+    });
+    batch.update(_users.doc(toUserId).collection('memberships').doc(clubId), {
+      'role': 'owner',
+    });
+    batch.set(_clubs.doc(clubId).collection('notices').doc(), {
+      'title': '회장이 바뀌었어요',
+      'body': '$toName님이 새 회장이에요',
+      'kind': 'info',
+      'unread': true,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> removeMember({
+    required String clubId,
+    required String userId,
+  }) async {
+    final ref = _clubs.doc(clubId).collection('members').doc(userId);
+    final snap = await ref.get();
+    if (!snap.exists) return;
+    if (snap.data()?['role'] == 'owner') {
+      throw StateError('회장은 내보낼 수 없어요.');
+    }
+    final batch = _db.batch();
+    batch.delete(ref);
+    batch.delete(_users.doc(userId).collection('memberships').doc(clubId));
+    if (snap.data()?['status'] == 'active') {
+      batch.update(_clubs.doc(clubId), {
+        'memberCount': FieldValue.increment(-1),
+      });
+    }
+    await batch.commit();
+  }
+
+  @override
+  Future<void> approveJoins({
+    required String clubId,
+    required List<String> userIds,
+  }) async {
+    if (userIds.isEmpty) return;
+    final batch = _db.batch();
+    for (final userId in userIds) {
+      batch.update(_clubs.doc(clubId).collection('members').doc(userId), {
+        'status': 'active',
+        'role': 'member',
+        'joinedAt': FieldValue.serverTimestamp(),
+      });
+      batch.set(_users.doc(userId).collection('memberships').doc(clubId), {
+        'clubId': clubId,
+        'role': 'member',
+        'status': 'active',
+      });
+    }
+    batch.update(_clubs.doc(clubId), {
+      'memberCount': FieldValue.increment(userIds.length),
+    });
+    batch.set(_clubs.doc(clubId).collection('notices').doc(), {
+      'title': '가입을 승인했어요',
+      'body': '${userIds.length}명의 가입을 승인했어요',
+      'kind': 'join',
+      'unread': true,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> rejectJoins({
+    required String clubId,
+    required List<String> userIds,
+  }) async {
+    if (userIds.isEmpty) return;
+    final batch = _db.batch();
+    for (final userId in userIds) {
+      batch.delete(_clubs.doc(clubId).collection('members').doc(userId));
+      batch.delete(_users.doc(userId).collection('memberships').doc(clubId));
+    }
+    await batch.commit();
+  }
+
+  @override
+  Future<String?> deleteClub({
+    required String uid,
+    required String clubId,
+  }) async {
+    final club = await _readClub(clubId);
+    if (club == null) return null;
+    if (club.ownerId != uid) throw StateError('회장만 동아리를 삭제할 수 있어요.');
+    final mirrors = await _users.doc(uid).collection('memberships').get();
+    final next = mirrors.docs
+        .where((doc) => doc.id != clubId && doc.data()['status'] == 'active')
+        .map((doc) => doc.id)
+        .cast<String?>()
+        .firstWhere((id) => id != null, orElse: () => null);
+    final members = await _clubs.doc(clubId).collection('members').get();
+    final refs = <DocumentReference<Map<String, dynamic>>>[
+      for (final doc in members.docs) ...[
+        doc.reference,
+        _users
+            .doc(doc.data()['userId'] as String? ?? doc.id)
+            .collection('memberships')
+            .doc(clubId),
+      ],
+    ];
+    for (final name in ['events', 'activities', 'notices']) {
+      final snap = await _clubs.doc(clubId).collection(name).get();
+      refs.addAll(snap.docs.map((doc) => doc.reference));
+    }
+    await _deleteRefs(refs);
+    if (club.inviteCode != null && club.inviteCode!.isNotEmpty) {
+      await _invites.doc(club.inviteCode).delete();
+    }
+    await _clubs.doc(clubId).delete();
+    if (next != null) {
+      await _users.doc(uid).update({'primaryClubId': next});
+    } else {
+      await _users.doc(uid).update({'primaryClubId': FieldValue.delete()});
+    }
+    return next;
+  }
+
+  @override
+  Future<ClubEvent> loadEvent({
+    required String clubId,
+    required String eventId,
+  }) async {
+    final snap = await _clubs
+        .doc(clubId)
+        .collection('events')
+        .doc(eventId)
+        .get();
+    if (!snap.exists) throw StateError('모임을 찾을 수 없어요.');
+    return _eventFrom(snap);
+  }
+
+  @override
+  Future<String> saveMeeting({
+    required String clubId,
+    required ClubEvent event,
+    ImagePayload? image,
+  }) async {
+    final ref = event.id.isEmpty
+        ? _clubs.doc(clubId).collection('events').doc()
+        : _clubs.doc(clubId).collection('events').doc(event.id);
+    final names = await _attendeeNames(clubId, event.attendeeIds);
+    final open = event.status == '진행 중';
+    final payload = <String, dynamic>{
+      'title': event.title.trim(),
+      'badge': event.badge,
+      'description': event.description.trim(),
+      'schedule': event.schedule,
+      'artKicker': event.artKicker.isEmpty
+          ? event.badge.toUpperCase()
+          : event.artKicker,
+      'artTitle': event.artTitle.isEmpty ? event.title.trim() : event.artTitle,
+      'place': event.place.trim(),
+      'supplies': event.supplies.trim(),
+      'status': event.status.isEmpty ? '예정' : event.status,
+      'attendanceOpen': open,
+      'attendeeIds': event.attendeeIds,
+      'attendeeInitials': names
+          .map(
+            (name) =>
+                name.isEmpty ? '모' : String.fromCharCode(name.runes.first),
+          )
+          .take(6)
+          .toList(),
+      'attendeeSummary': _attendeeSummary(names),
+      'checkedInCount': event.checkedInCount,
+      'feePaidCount': event.feePaidCount,
+      if (image == null && event.imageUrl != null && event.imageUrl!.isNotEmpty)
+        'imageUrl': event.imageUrl,
+    };
+    void putOptional(String key, Object? value) {
+      if (value != null) {
+        payload[key] = value;
+      } else if (event.id.isNotEmpty) {
+        payload[key] = FieldValue.delete();
+      }
+    }
+
+    putOptional(
+      'startsAt',
+      event.startsAt == null
+          ? null
+          : Timestamp.fromDate(kstWallToInstant(event.startsAt!)),
+    );
+    putOptional(
+      'endsAt',
+      event.endsAt == null
+          ? null
+          : Timestamp.fromDate(kstWallToInstant(event.endsAt!)),
+    );
+    putOptional('feeAmount', event.feeAmount);
+    putOptional(
+      'feeDueAt',
+      event.feeDueAt == null
+          ? null
+          : Timestamp.fromDate(kstWallToInstant(event.feeDueAt!)),
+    );
+    await ref.set(payload, SetOptions(merge: true));
+    if (image != null) {
+      final url = await _uploadBytes('clubs/$clubId/events/${ref.id}', image);
+      await ref.update({'imageUrl': url});
+    }
+    return ref.id;
+  }
+
+  @override
+  Future<void> setMeetingStatus({
+    required String clubId,
+    required String eventId,
+    required String status,
+  }) async {
+    await _clubs.doc(clubId).collection('events').doc(eventId).update({
+      'status': status,
+      'attendanceOpen': status == '진행 중',
+    });
+  }
+
+  @override
+  Future<void> setMeetingAttendees({
+    required String clubId,
+    required String eventId,
+    required List<String> attendeeIds,
+  }) async {
+    final names = await _attendeeNames(clubId, attendeeIds);
+    await _clubs.doc(clubId).collection('events').doc(eventId).update({
+      'attendeeIds': attendeeIds,
+      'attendeeInitials': names
+          .map(
+            (name) =>
+                name.isEmpty ? '모' : String.fromCharCode(name.runes.first),
+          )
+          .take(6)
+          .toList(),
+      'attendeeSummary': _attendeeSummary(names),
+    });
+  }
+
+  @override
+  Future<void> deleteMeeting({
+    required String clubId,
+    required String eventId,
+  }) async {
+    await _clubs.doc(clubId).collection('events').doc(eventId).delete();
   }
 
   @override
@@ -379,8 +972,8 @@ class FirebaseClubService implements ClubGateway {
     await batch.commit();
   }
 
-  Future<String> _upload(String clubId, ImagePayload image) async {
-    final ref = _storage.ref('clubs/$clubId/cover');
+  Future<String> _uploadBytes(String path, ImagePayload image) async {
+    final ref = _storage.ref(path);
     await ref.putData(
       Uint8List.fromList(image.bytes),
       SettableMetadata(contentType: image.contentType),
@@ -430,7 +1023,27 @@ class FirebaseClubService implements ClubGateway {
       name: data['name'] as String? ?? '',
       email: data['email'] as String? ?? '',
       activityAlerts: data['activityAlerts'] as bool? ?? false,
+      nickname: data['nickname'] as String?,
+      primaryClubId: data['primaryClubId'] as String?,
     );
+  }
+
+  int _roleRank(String role) => switch (role) {
+    'owner' => 0,
+    'admin' => 1,
+    _ => 2,
+  };
+
+  Future<void> _deleteRefs(
+    List<DocumentReference<Map<String, dynamic>>> refs,
+  ) async {
+    for (var index = 0; index < refs.length; index += 400) {
+      final batch = _db.batch();
+      for (final ref in refs.skip(index).take(400)) {
+        batch.delete(ref);
+      }
+      await batch.commit();
+    }
   }
 
   Club _clubFrom(DocumentSnapshot<Map<String, dynamic>> snap) {
@@ -479,6 +1092,57 @@ class FirebaseClubService implements ClubGateway {
     if (value is Timestamp) return value.toDate();
     if (value is DateTime) return value;
     return null;
+  }
+
+  DateTime? _kst(Object? value) {
+    final date = _date(value);
+    if (date == null) return null;
+    return toKst(date);
+  }
+
+  ClubEvent _eventFrom(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
+    return ClubEvent(
+      id: doc.id,
+      badge: data['badge'] as String? ?? '',
+      title: data['title'] as String? ?? '',
+      schedule: data['schedule'] as String? ?? '',
+      artKicker: data['artKicker'] as String? ?? '',
+      artTitle: data['artTitle'] as String? ?? '',
+      imageUrl: data['imageUrl'] as String?,
+      attendanceOpen: data['attendanceOpen'] as bool? ?? false,
+      attendeeInitials: _strings(data['attendeeInitials']),
+      attendeeSummary: data['attendeeSummary'] as String? ?? '',
+      startsAt: _kst(data['startsAt']),
+      endsAt: _kst(data['endsAt']),
+      place: data['place'] as String? ?? '',
+      status: data['status'] as String? ?? '',
+      description: data['description'] as String? ?? '',
+      supplies: data['supplies'] as String? ?? '',
+      attendeeIds: _strings(data['attendeeIds']),
+      checkedInCount: (data['checkedInCount'] as num?)?.toInt() ?? 0,
+      feeAmount: (data['feeAmount'] as num?)?.toInt(),
+      feeDueAt: _kst(data['feeDueAt']),
+      feePaidCount: (data['feePaidCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Future<List<String>> _attendeeNames(String clubId, List<String> ids) async {
+    if (ids.isEmpty) return const [];
+    final snap = await _clubs.doc(clubId).collection('members').get();
+    final names = <String, String>{};
+    for (final doc in snap.docs) {
+      final id = doc.data()['userId'] as String? ?? doc.id;
+      names[id] = doc.data()['userName'] as String? ?? '';
+    }
+    return [for (final id in ids) names[id] ?? ''];
+  }
+
+  String _attendeeSummary(List<String> names) {
+    final filled = names.where((name) => name.isNotEmpty).toList();
+    if (filled.isEmpty) return '';
+    if (filled.length <= 3) return '${filled.join(', ')} 참석';
+    return '${filled.take(3).join(', ')} 외 ${filled.length - 3}명';
   }
 
   List<String> _strings(Object? value) {

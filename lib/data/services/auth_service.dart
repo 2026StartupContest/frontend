@@ -50,7 +50,9 @@ class FirebaseAuthService implements AuthGateway {
         message: 'Google ID token was empty',
       );
     }
-    await _auth.signInWithCredential(GoogleAuthProvider.credential(idToken: idToken));
+    await _auth.signInWithCredential(
+      GoogleAuthProvider.credential(idToken: idToken),
+    );
   }
 
   @override
@@ -64,5 +66,26 @@ class FirebaseAuthService implements AuthGateway {
       await GoogleSignIn.instance.signOut();
     } catch (_) {}
     await _auth.signOut();
+  }
+
+  @override
+  Future<void> ensureRecentLogin() async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('로그인 정보가 없어요.');
+    final result = await user.getIdTokenResult();
+    final authTime = result.authTime;
+    final recent =
+        authTime != null &&
+        DateTime.now().difference(authTime) < const Duration(minutes: 5);
+    if (!recent) {
+      throw FirebaseAuthException(code: 'requires-recent-login');
+    }
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('로그인 정보가 없어요.');
+    await user.delete();
   }
 }

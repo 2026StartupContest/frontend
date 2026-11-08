@@ -9,5 +9,13 @@ abstract final class AppRoutes {
   static const joinRequest = '/clubs/join/request';
   static const joinPending = '/clubs/join/pending';
   static const home = '/home';
+  static const myPage = '/my-page';
+  static const meetings = '/home/meetings';
+  static const meetingDetail = '/home/meetings/detail';
+  static const meetingEdit = '/home/meetings/edit';
+  static const meetingAttendees = '/home/meetings/attendees';
+  static const clubSettings = '/clubs/settings';
+  static const memberRoles = '/clubs/members';
+  static const joinInbox = '/clubs/join/inbox';
   static const scan = '/clubs/join/scan';
 }

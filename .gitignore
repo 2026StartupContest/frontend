@@ -55,3 +55,6 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+
+# Nested design repo (not part of this app)
+frontend/

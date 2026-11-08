@@ -14,7 +14,10 @@ void main() {
       MaterialApp(
         theme: AppTheme.light(),
         home: Scaffold(
-          bottomNavigationBar: MoaBottomNav(selected: MoaTab.home, onSelected: (_) {}),
+          bottomNavigationBar: MoaBottomNav(
+            selected: MoaTab.home,
+            onSelected: (_) {},
+          ),
         ),
       ),
     );
@@ -27,7 +30,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light(),
-        home: const Scaffold(bottomNavigationBar: MoaBottomNav(selected: MoaTab.attendance)),
+        home: const Scaffold(
+          bottomNavigationBar: MoaBottomNav(selected: MoaTab.attendance),
+        ),
       ),
     );
     expect(find.byKey(const ValueKey('nav-attendance')), findsOneWidget);
@@ -64,7 +69,10 @@ class _FakeAuth implements AuthGateway {
   Future<void> sendPasswordReset(String email) async {}
 
   @override
-  Future<void> signInWithEmail({required String email, required String password}) async {}
+  Future<void> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {}
 
   @override
   Future<void> signInWithGoogle() async {}
@@ -73,15 +81,32 @@ class _FakeAuth implements AuthGateway {
   Future<void> signOut() async {}
 
   @override
-  Future<void> signUpWithEmail({required String email, required String password, required String name}) async {}
+  Future<void> ensureRecentLogin() async {}
+
+  @override
+  Future<void> deleteAccount() async {}
+
+  @override
+  Future<void> signUpWithEmail({
+    required String email,
+    required String password,
+    required String name,
+  }) async {}
 }
 
 class _FakeClubs implements ClubGateway {
   @override
-  Future<void> askOwner({required String uid, required String userName, required String clubId}) async {}
+  Future<void> askOwner({
+    required String uid,
+    required String userName,
+    required String clubId,
+  }) async {}
 
   @override
-  Future<void> cancelJoin({required String uid, required String clubId}) async {}
+  Future<void> cancelJoin({
+    required String uid,
+    required String clubId,
+  }) async {}
 
   @override
   Future<CreatedClub> createClub({
@@ -98,7 +123,12 @@ class _FakeClubs implements ClubGateway {
   }
 
   @override
-  Future<void> ensureUser({required String id, required String name, required String email, bool activityAlerts = false}) async {}
+  Future<void> ensureUser({
+    required String id,
+    required String name,
+    required String email,
+    bool activityAlerts = false,
+  }) async {}
 
   @override
   Future<ClubPreview?> findByCode(String code) async => null;
@@ -107,7 +137,31 @@ class _FakeClubs implements ClubGateway {
   Future<AppUser?> getUser(String uid) async => null;
 
   @override
-  Future<void> joinImmediately({required String uid, required String userName, required Club club}) async {}
+  Future<ProfileData> loadProfile(String uid) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> updateNickname({
+    required String uid,
+    required String nickname,
+  }) async {}
+
+  @override
+  Future<void> updateActivityAlerts({
+    required String uid,
+    required bool enabled,
+  }) async {}
+
+  @override
+  Future<void> deleteAccountData(String uid) async {}
+
+  @override
+  Future<void> joinImmediately({
+    required String uid,
+    required String userName,
+    required Club club,
+  }) async {}
 
   @override
   Future<LaunchTarget> launchFor(String uid) {
@@ -120,7 +174,10 @@ class _FakeClubs implements ClubGateway {
   }
 
   @override
-  Future<PendingView> loadPending({required String uid, required String clubId}) {
+  Future<PendingView> loadPending({
+    required String uid,
+    required String clubId,
+  }) {
     throw UnimplementedError();
   }
 
@@ -134,5 +191,111 @@ class _FakeClubs implements ClubGateway {
     required Club club,
     required String depositName,
     required bool feeReported,
+  }) async {}
+
+  @override
+  Future<void> approveJoins({
+    required String clubId,
+    required List<String> userIds,
+  }) async {}
+
+  @override
+  Future<String?> deleteClub({
+    required String uid,
+    required String clubId,
+  }) async => null;
+
+  @override
+  Future<ClubDesk> loadDesk({required String uid, required String clubId}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> reissueInvite({required String clubId}) async => '';
+
+  @override
+  Future<void> rejectJoins({
+    required String clubId,
+    required List<String> userIds,
+  }) async {}
+
+  @override
+  Future<void> removeMember({
+    required String clubId,
+    required String userId,
+  }) async {}
+
+  @override
+  Future<void> setMemberRole({
+    required String clubId,
+    required String userId,
+    required String role,
+  }) async {}
+
+  @override
+  Future<void> setPrimaryClub({
+    required String uid,
+    required String clubId,
+  }) async {}
+
+  @override
+  Future<void> transferOwnership({
+    required String clubId,
+    required String fromUserId,
+    required String toUserId,
+  }) async {}
+
+  @override
+  Future<void> updateClubName({
+    required String clubId,
+    required String name,
+    ImagePayload? image,
+  }) async {}
+
+  @override
+  Future<void> updateFeeAmount({
+    required String clubId,
+    required int? feeAmount,
+  }) async {}
+
+  @override
+  Future<void> updateJoinPolicy({
+    required String clubId,
+    required String joinPolicy,
+  }) async {}
+
+  @override
+  Future<void> deleteMeeting({
+    required String clubId,
+    required String eventId,
+  }) async {}
+
+  @override
+  Future<ClubEvent> loadEvent({
+    required String clubId,
+    required String eventId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> saveMeeting({
+    required String clubId,
+    required ClubEvent event,
+    ImagePayload? image,
+  }) async => event.id;
+
+  @override
+  Future<void> setMeetingAttendees({
+    required String clubId,
+    required String eventId,
+    required List<String> attendeeIds,
+  }) async {}
+
+  @override
+  Future<void> setMeetingStatus({
+    required String clubId,
+    required String eventId,
+    required String status,
   }) async {}
 }
