@@ -87,7 +87,12 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
                     children: [
                       InkWell(
                         onTap: () async {
-                          final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+                          final file = await ImagePicker().pickImage(
+                            source: ImageSource.gallery,
+                            imageQuality: 80,
+                            maxWidth: 1600,
+                            maxHeight: 1600,
+                          );
                           if (file != null) setState(() => _image = file);
                         },
                         child: Container(

@@ -15,4 +15,26 @@ abstract final class AppColors {
   static const white = Color(0xFFFFFFFF);
   static const attendanceIdle = Color(0xFFE7DCC4);
   static const danger = Color(0xFF9A4A3A);
+  static const count = Color(0xFFC8753B);
+  static const unreadDot = Color(0xFFEC8969);
+  static const copper = Color(0xFFAC7E35);
+  static const peach = Color(0xFFFFF1DC);
+  static const dangerSolid = Color(0xFFC4573F);
+  static const dangerBg = Color(0xFFFDF6F3);
+  static const dangerBorder = Color(0xFFEFD3CA);
+  static const art = Color(0xFFE1E8D7);
+  static const artInk = Color(0xFF3C5638);
+  static const artMuted = Color(0xFF5A6B52);
+  static const live = Color(0xFF3CB371);
+  static const soft = Color(0xFFEAF1E0);
+  static const taskBlue = Color(0xFFE8EEF6);
+  static const taskCream = Color(0xFFFFF2DF);
+  static const taskGreen = Color(0xFFEFF4E3);
+  static const dim = Color(0x6617261F);
+  static const infoNote = Color(0xFFEDF1E6);
+  static const infoText = Color(0xFF78836E);
+  static const unpaidBg = Color(0xFFF7EDE8);
+  static const unpaidText = Color(0xFFC37550);
+  static const roleGray = Color(0xFF7D867A);
+  static const roleGrayBg = Color(0xFFF0F1EC);
 }

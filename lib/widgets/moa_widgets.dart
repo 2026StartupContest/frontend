@@ -1,6 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/theme/app_colors.dart';
 
+class MoaMark extends StatelessWidget {
+  const MoaMark({super.key, this.size = 46});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(size * 0.28),
+      ),
+      child: Icon(Icons.emergency, color: AppColors.caper, size: size * 0.55),
+    );
+  }
+}
+
 class MoaLogo extends StatelessWidget {
   const MoaLogo({super.key, this.size = 46});
 
@@ -11,15 +30,7 @@ class MoaLogo extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(size * 0.28),
-          ),
-          child: Icon(Icons.emergency, color: AppColors.caper, size: size * 0.55),
-        ),
+        MoaMark(size: size),
         const SizedBox(width: 10),
         Text(
           '모아',
@@ -180,10 +191,11 @@ class MoaField extends StatelessWidget {
 }
 
 class MoaPageHeader extends StatelessWidget {
-  const MoaPageHeader({super.key, required this.title, this.onBack});
+  const MoaPageHeader({super.key, required this.title, this.onBack, this.trailing});
 
   final String title;
   final VoidCallback? onBack;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -202,7 +214,7 @@ class MoaPageHeader extends StatelessWidget {
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
           ),
-          const SizedBox(width: 48),
+          SizedBox(width: 48, child: trailing),
         ],
       ),
     );

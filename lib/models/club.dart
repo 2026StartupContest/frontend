@@ -120,9 +120,21 @@ class ClubEvent {
     required this.schedule,
     required this.artKicker,
     required this.artTitle,
+    this.imageUrl,
     this.attendanceOpen = false,
     this.attendeeInitials = const [],
     this.attendeeSummary = '',
+    this.startsAt,
+    this.endsAt,
+    this.place = '',
+    this.status = '',
+    this.description = '',
+    this.supplies = '',
+    this.attendeeIds = const [],
+    this.checkedInCount = 0,
+    this.feeAmount,
+    this.feeDueAt,
+    this.feePaidCount = 0,
   });
 
   final String id;
@@ -131,9 +143,30 @@ class ClubEvent {
   final String schedule;
   final String artKicker;
   final String artTitle;
+  final String? imageUrl;
   final bool attendanceOpen;
   final List<String> attendeeInitials;
   final String attendeeSummary;
+  final DateTime? startsAt;
+  final DateTime? endsAt;
+  final String place;
+  final String status;
+  final String description;
+  final String supplies;
+  final List<String> attendeeIds;
+  final int checkedInCount;
+  final int? feeAmount;
+  final DateTime? feeDueAt;
+  final int feePaidCount;
+
+  int get attendeeCount =>
+      attendeeIds.isEmpty ? attendeeInitials.length : attendeeIds.length;
+
+  String get scheduleLine {
+    if (place.isEmpty || schedule.contains(place)) return schedule;
+    if (schedule.isEmpty) return place;
+    return '$schedule  |  $place';
+  }
 }
 
 class ActivityItem {
@@ -197,6 +230,9 @@ class HomeData {
     required this.activities,
     required this.notices,
     required this.tasks,
+    required this.role,
+    required this.options,
+    this.primaryClubId,
   });
 
   final AppUser user;
@@ -206,8 +242,122 @@ class HomeData {
   final List<ActivityItem> activities;
   final List<ClubNotice> notices;
   final List<HomeTask> tasks;
+  final String role;
+  final List<ClubOption> options;
+  final String? primaryClubId;
 
   bool get hasUnread => notices.any((notice) => notice.unread);
+}
+
+class ClubOption {
+  const ClubOption({
+    required this.club,
+    required this.role,
+    required this.status,
+    required this.primary,
+  });
+
+  final Club club;
+  final String role;
+  final String status;
+  final bool primary;
+
+  bool get isPending => status == 'pending';
+}
+
+class ProfileData {
+  const ProfileData({required this.user, required this.options});
+
+  final AppUser user;
+  final List<ClubOption> options;
+
+  bool owns(ClubOption option) =>
+      option.role == 'owner' || option.club.ownerId == user.id;
+
+  List<ClubOption> get ownedClubs =>
+      options.where((option) => !option.isPending && owns(option)).toList();
+
+  int get leavingClubCount => options.where((option) => !owns(option)).length;
+
+  String get ownedLine {
+    if (ownedClubs.isEmpty) return '없음';
+    final names = ownedClubs.map((option) => option.club.name).join(', ');
+    return '$names · 먼저 회장을 넘겨야 해요';
+  }
+
+  String get joinedLine =>
+      leavingClubCount == 0 ? '없어요' : '$leavingClubCount곳에서 자동으로 나가요';
+
+  List<ClubOption> get visibleClubs {
+    final active = options.where((option) => !option.isPending).toList()
+      ..sort((a, b) {
+        if (a.primary != b.primary) return a.primary ? -1 : 1;
+        return a.club.name.compareTo(b.club.name);
+      });
+    return active;
+  }
+}
+
+class ClubMember {
+  const ClubMember({
+    required this.userId,
+    required this.userName,
+    required this.role,
+    required this.status,
+    this.duty,
+    this.joinedAt,
+    this.unpaidDues,
+    this.unsettledAmount,
+  });
+
+  final String userId;
+  final String userName;
+  final String role;
+  final String status;
+  final String? duty;
+  final DateTime? joinedAt;
+  final int? unpaidDues;
+  final int? unsettledAmount;
+
+  String get initial =>
+      userName.isEmpty ? '모' : String.fromCharCode(userName.runes.first);
+
+  String get subtitle {
+    if (role == 'owner') {
+      final at = joinedAt;
+      if (at == null) return '동아리 개설';
+      return '동아리 개설 · ${at.year}.${at.month.toString().padLeft(2, '0')}';
+    }
+    final note = duty?.trim() ?? '';
+    if (note.isNotEmpty) return note;
+    final at = joinedAt;
+    if (at == null) return '';
+    return '${at.year}.${at.month.toString().padLeft(2, '0')} 가입';
+  }
+}
+
+class ClubDesk {
+  const ClubDesk({
+    required this.user,
+    required this.club,
+    required this.myRole,
+    required this.members,
+    required this.requests,
+  });
+
+  final AppUser user;
+  final Club club;
+  final String myRole;
+  final List<ClubMember> members;
+  final List<Membership> requests;
+
+  int get adminCount =>
+      members.where((member) => member.role == 'admin').length;
+
+  int get reportedCount =>
+      requests.where((request) => request.feeReported).length;
+
+  int get unpaidCount => requests.length - reportedCount;
 }
 
 class ImagePayload {

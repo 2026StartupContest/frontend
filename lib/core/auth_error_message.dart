@@ -16,6 +16,7 @@ String authErrorMessage(Object error) {
       'weak-password' => '비밀번호는 영문과 숫자를 포함해 8자 이상이어야 해요.',
       'network-request-failed' => '네트워크 연결을 확인해 주세요.',
       'too-many-requests' => '시도가 너무 많아요. 잠시 후 다시 시도해 주세요.',
+      'requires-recent-login' => '다시 로그인한 뒤 탈퇴해 주세요.',
       _ => '로그인에 실패했어요. 잠시 후 다시 시도해 주세요.',
     };
   }

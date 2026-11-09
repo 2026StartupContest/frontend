@@ -29,6 +29,10 @@ abstract class AuthGateway {
   Future<void> sendPasswordReset(String email);
 
   Future<void> signOut();
+
+  Future<void> ensureRecentLogin();
+
+  Future<void> deleteAccount();
 }
 
 abstract class ClubGateway {
@@ -40,6 +44,17 @@ abstract class ClubGateway {
   });
 
   Future<AppUser?> getUser(String uid);
+
+  Future<ProfileData> loadProfile(String uid);
+
+  Future<void> updateNickname({required String uid, required String nickname});
+
+  Future<void> updateActivityAlerts({
+    required String uid,
+    required bool enabled,
+  });
+
+  Future<void> deleteAccountData(String uid);
 
   Future<LaunchTarget> launchFor(String uid);
 
@@ -86,4 +101,77 @@ abstract class ClubGateway {
   Future<HomeData> loadHome({required String uid, required String clubId});
 
   Future<void> markNoticesRead(String clubId);
+
+  Future<ClubDesk> loadDesk({required String uid, required String clubId});
+
+  Future<void> setPrimaryClub({required String uid, required String clubId});
+
+  Future<void> updateClubName({
+    required String clubId,
+    required String name,
+    ImagePayload? image,
+  });
+
+  Future<void> updateJoinPolicy({
+    required String clubId,
+    required String joinPolicy,
+  });
+
+  Future<void> updateFeeAmount({
+    required String clubId,
+    required int? feeAmount,
+  });
+
+  Future<String> reissueInvite({required String clubId});
+
+  Future<void> setMemberRole({
+    required String clubId,
+    required String userId,
+    required String role,
+  });
+
+  Future<void> transferOwnership({
+    required String clubId,
+    required String fromUserId,
+    required String toUserId,
+  });
+
+  Future<void> removeMember({required String clubId, required String userId});
+
+  Future<void> approveJoins({
+    required String clubId,
+    required List<String> userIds,
+  });
+
+  Future<void> rejectJoins({
+    required String clubId,
+    required List<String> userIds,
+  });
+
+  Future<String?> deleteClub({required String uid, required String clubId});
+
+  Future<ClubEvent> loadEvent({
+    required String clubId,
+    required String eventId,
+  });
+
+  Future<String> saveMeeting({
+    required String clubId,
+    required ClubEvent event,
+    ImagePayload? image,
+  });
+
+  Future<void> setMeetingStatus({
+    required String clubId,
+    required String eventId,
+    required String status,
+  });
+
+  Future<void> setMeetingAttendees({
+    required String clubId,
+    required String eventId,
+    required List<String> attendeeIds,
+  });
+
+  Future<void> deleteMeeting({required String clubId, required String eventId});
 }
