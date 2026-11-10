@@ -214,32 +214,35 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Widget _checks() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.white,
+    return Material(
+      color: AppColors.white,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.line),
+        side: const BorderSide(color: AppColors.line),
       ),
-      child: Column(
-        children: [
-          CheckboxListTile(
-            value: _model.allChecked,
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            title: const Text('약관 전체 동의', style: TextStyle(fontWeight: FontWeight.w700)),
-            onChanged: (value) => _model.toggleAll(value ?? false),
-          ),
-          _row('필수', '서비스 이용약관', _model.terms, _model.setTerms, _termsBody),
-          _row('필수', '개인정보 처리방침', _model.privacy, _model.setPrivacy, _privacyBody),
-          CheckboxListTile(
-            value: _model.alerts,
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            title: const Text('[선택] 활동 알림 받기', style: TextStyle(fontSize: 14)),
-            onChanged: (value) => _model.setAlerts(value ?? false),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          children: [
+            CheckboxListTile(
+              value: _model.allChecked,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('약관 전체 동의', style: TextStyle(fontWeight: FontWeight.w700)),
+              onChanged: (value) => _model.toggleAll(value ?? false),
+            ),
+            _row('필수', '서비스 이용약관', _model.terms, _model.setTerms, _termsBody),
+            _row('필수', '개인정보 처리방침', _model.privacy, _model.setPrivacy, _privacyBody),
+            CheckboxListTile(
+              value: _model.alerts,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('[선택] 활동 알림 받기', style: TextStyle(fontSize: 14)),
+              onChanged: (value) => _model.setAlerts(value ?? false),
+            ),
+          ],
+        ),
       ),
     );
   }

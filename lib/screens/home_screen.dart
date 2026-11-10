@@ -7,6 +7,7 @@ import 'package:flutter_proj/core/theme/app_colors.dart';
 import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/models/club.dart';
 import 'package:flutter_proj/router/app_routes.dart';
+import 'package:flutter_proj/core/accounting.dart';
 import 'package:flutter_proj/router/open_launch.dart';
 import 'package:flutter_proj/widgets/club_chrome.dart';
 import 'package:flutter_proj/widgets/club_sheets.dart';
@@ -214,7 +215,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 12),
                         ..._events(data),
                         const SizedBox(height: 22),
-                        const QuickActions(),
+                        QuickActions(
+                          onAction: (key) {
+                            if (key == 'dues') {
+                              openAccounting(context, _clubId, segment: AccountingSegment.dues);
+                            }
+                            if (key == 'ledger') {
+                              openAccounting(context, _clubId, segment: AccountingSegment.ledger);
+                            }
+                          },
+                        ),
                         const SizedBox(height: 26),
                         const SectionTitle(title: '지금 확인해 주세요'),
                         const SizedBox(height: 12),
@@ -269,6 +279,9 @@ class _HomeScreenState extends State<HomeScreen> {
               AppRoutes.attendance,
               arguments: ClubArgs(_clubId),
             ).then((_) => _load());
+          }
+          if (tab == MoaTab.settlement) {
+            openAccounting(context, _clubId);
           }
           if (tab == MoaTab.myPage) {
             Navigator.pushNamed(

@@ -4,6 +4,7 @@ import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
 import 'package:flutter_proj/router/app_routes.dart';
 import 'package:flutter_proj/router/open_launch.dart';
+import 'package:flutter_proj/screens/accounting_screen.dart';
 import 'package:flutter_proj/screens/attendance_done_screen.dart';
 import 'package:flutter_proj/screens/attendance_home_screen.dart';
 import 'package:flutter_proj/screens/attendance_manage_screen.dart';
@@ -13,6 +14,7 @@ import 'package:flutter_proj/screens/attendance_roster_screen.dart';
 import 'package:flutter_proj/screens/attendance_scan_screen.dart';
 import 'package:flutter_proj/screens/club_settings_screen.dart';
 import 'package:flutter_proj/screens/create_club_screen.dart';
+import 'package:flutter_proj/screens/dues_settings_screen.dart';
 import 'package:flutter_proj/screens/home_screen.dart';
 import 'package:flutter_proj/screens/join_inbox_screen.dart';
 import 'package:flutter_proj/screens/meeting_attendees_screen.dart';
@@ -35,6 +37,7 @@ import 'package:flutter_proj/screens/invite_screen.dart';
 import 'package:flutter_proj/screens/join_code_screen.dart';
 import 'package:flutter_proj/screens/join_pending_screen.dart';
 import 'package:flutter_proj/screens/join_request_screen.dart';
+import 'package:flutter_proj/screens/ledger_screens.dart';
 import 'package:flutter_proj/screens/login_screen.dart';
 import 'package:flutter_proj/screens/no_club_screen.dart';
 import 'package:flutter_proj/screens/signup_done_screen.dart';
@@ -163,6 +166,26 @@ abstract final class AppRouter {
         clubId: (settings.arguments! as ClubArgs).clubId,
       ),
       AppRoutes.scan => const QrScanScreen(),
+      AppRoutes.accounting => AccountingScreen(
+        deps: deps,
+        args: settings.arguments! as AccountingArgs,
+      ),
+      AppRoutes.duesSettings => DuesSettingsScreen(
+        deps: deps,
+        clubId: (settings.arguments! as ClubArgs).clubId,
+      ),
+      AppRoutes.ledgerAll => LedgerTransactionsScreen(
+        deps: deps,
+        clubId: (settings.arguments! as ClubArgs).clubId,
+      ),
+      AppRoutes.ledgerEntry => LedgerEntryScreen(
+        deps: deps,
+        args: settings.arguments! as LedgerEntryArgs,
+      ),
+      AppRoutes.ledgerDetail => LedgerDetailScreen(
+        deps: deps,
+        args: settings.arguments! as LedgerEntryArgs,
+      ),
       _ => LoginScreen(deps: deps),
     };
     return MaterialPageRoute<void>(settings: settings, builder: (_) => page);

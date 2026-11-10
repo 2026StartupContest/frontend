@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/theme/app_theme.dart';
 import 'package:flutter_proj/data/gateways.dart';
+import 'package:flutter_proj/models/accounting.dart';
 import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
@@ -25,7 +26,7 @@ void main() {
     expect(find.text('홈'), findsOneWidget);
     expect(find.text('예약'), findsOneWidget);
     expect(find.text('출석'), findsOneWidget);
-    expect(find.text('정산'), findsOneWidget);
+    expect(find.text('회계'), findsOneWidget);
     expect(find.text('마이페이지'), findsOneWidget);
 
     await tester.pumpWidget(
@@ -359,5 +360,73 @@ class _FakeClubs implements ClubGateway {
     required String actorId,
     required String actorName,
     String? reason,
+  }) async {}
+
+  @override
+  Future<AccountingData> loadAccounting({
+    required String uid,
+    required String clubId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> registerDues({
+    required String clubId,
+    required String actorId,
+    required String title,
+    required int amount,
+    required DateTime dueAt,
+    required String repeat,
+    required bool allMembers,
+    required List<DuesTarget> targets,
+  }) async {}
+
+  @override
+  Future<void> reportDuesPayment({
+    required String clubId,
+    required String duesId,
+    required String userId,
+    required String depositName,
+  }) async {}
+
+  @override
+  Future<void> confirmDuesPayment({
+    required String clubId,
+    required String duesId,
+    required String userId,
+    required String actorId,
+    required String actorName,
+    required String ledgerTitle,
+    required int amount,
+  }) async {}
+
+  @override
+  Future<void> remindUnpaidDues({
+    required String clubId,
+    required String actorId,
+    required String title,
+    required String body,
+  }) async {}
+
+  @override
+  Future<void> saveLedgerEntry({
+    required String clubId,
+    required String actorId,
+    required String actorName,
+    String? entryId,
+    required String kind,
+    required int amount,
+    required String title,
+    required DateTime occurredAt,
+    required String category,
+    required String memo,
+    ImagePayload? receipt,
+  }) async {}
+
+  @override
+  Future<void> deleteLedgerEntry({
+    required String clubId,
+    required String entryId,
   }) async {}
 }

@@ -20,5 +20,10 @@ service firebase.storage {
       allow read: if signedIn();
       allow write: if signedIn() && isImage();
     }
+
+    match /clubs/{clubId}/ledger/{entryId} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isImage();
+    }
   }
 }

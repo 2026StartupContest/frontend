@@ -126,6 +126,9 @@ class _AttendanceHomeScreenState extends State<AttendanceHomeScreen> {
               arguments: ClubArgs(widget.clubId),
             );
           }
+          if (tab == MoaTab.settlement) {
+            openAccounting(context, widget.clubId);
+          }
         },
       ),
     );

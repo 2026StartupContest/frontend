@@ -471,7 +471,9 @@ class _Initial extends StatelessWidget {
 }
 
 class QuickActions extends StatelessWidget {
-  const QuickActions({super.key});
+  const QuickActions({super.key, this.onAction});
+
+  final ValueChanged<String>? onAction;
 
   static const _items = [
     ('dues', '회비 관리'),
@@ -486,21 +488,25 @@ class QuickActions extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         for (final item in _items)
-          Column(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.chip),
+          InkWell(
+            onTap: onAction == null ? null : () => onAction!(item.$1),
+            borderRadius: BorderRadius.circular(18),
+            child: Column(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.chip),
+                  ),
+                  child: Center(child: HomeIcon(item.$1)),
                 ),
-                child: Center(child: HomeIcon(item.$1)),
-              ),
-              const SizedBox(height: 8),
-              Text(item.$2, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-            ],
+                const SizedBox(height: 8),
+                Text(item.$2, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
       ],
     );
