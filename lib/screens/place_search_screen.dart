@@ -65,7 +65,7 @@ class _PlaceSearchScreenState extends State<PlaceSearchScreen> {
           arguments: ClubArgs(widget.clubId),
         );
       case MoaTab.settlement:
-        return;
+        openAccounting(context, widget.clubId);
       case MoaTab.myPage:
         Navigator.pushNamed(
           context,

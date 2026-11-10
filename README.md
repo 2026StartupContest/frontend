@@ -265,6 +265,48 @@ QR에 담는 문자열은 `moa-attendance:{clubId}:{eventId}:{token}`입니다. 
 
 오너와 활동 멤버가 읽기만 할 수 있습니다. 클라이언트 쓰기는 전부 거부됩니다.
 
+### `clubs/{clubId}/dues/{id}`
+
+이번 회차 회비입니다. 활동 멤버가 읽고, 운영진(회장 또는 멤버 역할 `admin`)이 만듭니다.
+
+| 필드 | 값 |
+| --- | --- |
+| `title` | 1–40자 |
+| `amount` | 1 이상 정수 |
+| `dueAt` | timestamp. 화면의 한국 시각 벽시계 |
+| `repeat` | `monthly` 또는 `once`. `monthly`도 이번 회차만 만들고 다음 달은 자동으로 생기지 않음 |
+| `target` | `all` 또는 `selected` |
+| `targetIds` | 납부 대상 uid 목록. 300개 이하 |
+| `createdBy` | 현재 uid |
+| `createdAt` | 서버 시각 |
+
+### `clubs/{clubId}/dues/{id}/payments/{uid}`
+
+문서 id는 구성원 uid입니다. 본인 또는 운영진만 단건 조회합니다. 목록 조회는 운영진만 할 수 있어서 일반 부원은 다른 사람의 납부 상태를 읽지 못합니다.
+
+| 필드 | 값 |
+| --- | --- |
+| `userId`, `userName`, `amount` | 생성 시 필수. `status`는 `unpaid` |
+| `status` | `unpaid`, `reported`, `paid` |
+| `depositName`, `reportedAt` | 본인이 `unpaid`에서 `reported`로 바꿀 때만 |
+| `confirmedAt`, `confirmedBy` | 운영진이 `reported`에서 `paid`로 확정할 때만. 같은 배치에서 장부 수입 한 줄을 만듦 |
+
+### `clubs/{clubId}/ledger/{id}`
+
+활동 멤버가 읽고, 운영진만 만들고 고치고 지웁니다. 잔액은 클럽 문서의 `balance`를 쓰지 않고 이 목록의 수입에서 지출을 빼서 계산합니다.
+
+| 필드 | 값 |
+| --- | --- |
+| `kind` | `income` 또는 `expense` |
+| `amount` | 1 이상 정수 |
+| `title` | 1–80자. 사용처 |
+| `occurredAt` | timestamp |
+| `category` | `물품 구매`, `활동비`, `모임 지원`, `기타` |
+| `memo` | 200자 이하 |
+| `actorId`, `actorName` | 생성 시 `actorId`는 현재 uid. 수정해도 등록자는 바뀌지 않음 |
+| `createdAt` | 서버 시각. 수정 시 유지 |
+| `receiptUrl` | 생략 가능. Storage `clubs/{clubId}/ledger/{entryId}` |
+
 ### `inviteCodes/{code}`
 
 문서 ID가 초대 코드입니다. 코드는 `generateInviteCode`가 만드는 6자이고, 알파벳은 혼동 문자를 뺀 `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`입니다.
@@ -285,6 +327,7 @@ QR에 담는 문자열은 `moa-attendance:{clubId}:{eventId}:{token}`입니다. 
 | --- | --- |
 | `clubs/{clubId}/cover` | 동아리 대표 이미지 |
 | `clubs/{clubId}/events/{eventId}` | 모임 배너 |
+| `clubs/{clubId}/ledger/{entryId}` | 장부 영수증 |
 
 읽기도 로그인 사용자만 가능합니다. 다운로드 URL은 클럽·모임 문서의 `imageUrl`에 저장합니다. `moaImage`는 `data:image`로 시작하면 base64로 그리고, 그 외에는 네트워크 이미지로 그립니다.
 
@@ -404,7 +447,7 @@ QR에 담는 문자열은 `moa-attendance:{clubId}:{eventId}:{token}`입니다. 
 ### `moa_bottom_nav.dart`
 
 `MoaTab`  
-`home`, `reservation`, `attendance`, `settlement`, `myPage`. 라벨은 `홈`, `예약`, `출석`, `정산`, `마이페이지`.
+`home`, `reservation`, `attendance`, `settlement`, `myPage`. 라벨은 `홈`, `예약`, `출석`, `회계`, `마이페이지`. `settlement` 칸을 누르면 `/home/accounting`이 열리고, 기본 세그먼트는 회비입니다.
 
 `MoaBottomNav`  
 `selected`와 `onSelected`. 출석 탭은 가운데로 떠 있는 QR 원이고, 나머지 선택 탭은 아이콘 뒤 캡슐을 그립니다. 출석 탭이 선택되면 원이 연한 초록이 되고 `assets/attendance/nav_qr_selected.svg`를 그립니다. 탭 키는 `nav-${tab.name}`입니다. `onSelected`가 null이면 탭이 동작하지 않습니다.
@@ -473,7 +516,7 @@ QR에 담는 문자열은 `moa-attendance:{clubId}:{eventId}:{token}`입니다. 
 배너 아래 배지, 제목, `scheduleLine`, 참석 이니셜 최대 3개, `attendeeSummary`. 시작일이 오늘(KST)이면 배지는 `오늘 · {동아리} 모임`입니다. `attendanceOpen`이면 `출석 진행 중`을 보여 줍니다.
 
 `QuickActions`  
-회비 관리, QR 출석, N차 정산, 회계 장부. 현재 각 칸에는 탭 콜백이 없습니다.
+회비 관리, QR 출석, N차 정산, 회계 장부. `onAction`에 칸 이름(`dues`, `qr`, `settle`, `ledger`)이 전달됩니다. 홈은 `dues`를 회비 세그먼트, `ledger`를 회계 장부 세그먼트로 `/home/accounting`에 연결합니다. QR 출석과 N차 정산은 아직 이 콜백에서 이동하지 않습니다.
 
 `TaskCard`  
 `HomeTask`와 `onTap`. `kind`가 `dues`면 크림색과 `task_dues`, `settlement`면 녹색과 `task_settle`, 그 외는 파란색과 `task_join`입니다. `count`가 있으면 제목 옆에 붙고, 회비는 `copper`, 그 외는 `primary`입니다.

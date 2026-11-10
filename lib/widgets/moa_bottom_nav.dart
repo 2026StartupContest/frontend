@@ -14,7 +14,7 @@ class MoaBottomNav extends StatelessWidget {
   final MoaTab selected;
   final ValueChanged<MoaTab>? onSelected;
 
-  static const labels = ['홈', '예약', '출석', '정산', '마이페이지'];
+  static const labels = ['홈', '예약', '출석', '회계', '마이페이지'];
   static const _barHeight = 78.0;
   static const _lift = 16.5;
   static const _muted = Color(0xFFA9B1A6);

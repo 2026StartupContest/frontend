@@ -1,11 +1,13 @@
 import 'dart:math';
 
+import 'package:flutter_proj/core/accounting.dart';
 import 'package:flutter_proj/core/attendance.dart';
 import 'package:flutter_proj/core/auth_validators.dart';
 import 'package:flutter_proj/core/club_access.dart';
 import 'package:flutter_proj/core/meeting_filter.dart';
 import 'package:flutter_proj/core/session_destination.dart';
 import 'package:flutter_proj/data/services/club_service.dart';
+import 'package:flutter_proj/models/accounting.dart';
 import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
@@ -307,6 +309,45 @@ void main() {
       ['counted', 'spring', 'open'],
     );
   });
+
+  test('일반 부원은 자기 회비만 보고 운영진은 전체 회비를 본다', () {
+    final payments = [
+      _payment('me', 'unpaid'),
+      _payment('other', 'paid'),
+    ];
+    expect(
+      visibleDuesPayments(role: 'member', userId: 'me', payments: payments).map((payment) => payment.userId),
+      ['me'],
+    );
+    expect(
+      visibleDuesPayments(role: 'admin', userId: 'me', payments: payments),
+      hasLength(2),
+    );
+    expect(
+      visibleDuesPayments(role: 'owner', userId: 'me', payments: payments),
+      hasLength(2),
+    );
+  });
+
+  test('장부 기록은 운영진만 할 수 있고 잔액은 수입에서 지출을 뺀다', () {
+    expect(canRecordLedger('member'), isFalse);
+    expect(canRecordLedger('admin'), isTrue);
+    expect(canRecordLedger('owner'), isTrue);
+    final entries = [
+      _entry('in', LedgerKind.income, 20000, DateTime(2026, 11, 2)),
+      _entry('out', LedgerKind.expense, 8000, DateTime(2026, 11, 3)),
+      _entry('old', LedgerKind.income, 1000, DateTime(2026, 10, 1)),
+    ];
+    expect(ledgerBalance(entries), 13000);
+    expect(monthLedgerTotals(entries, DateTime(2026, 11)).income, 20000);
+    expect(monthLedgerTotals(entries, DateTime(2026, 11)).expense, 8000);
+    final progress = duesProgress([
+      _payment('a', DuesStatus.paid, amount: 10000),
+      _payment('b', DuesStatus.unpaid, amount: 10000),
+    ]);
+    expect(progress.percent, 50);
+    expect(progress.unpaidCount, 1);
+  });
 }
 
 AttendanceRecord _record(String userId) {
@@ -361,6 +402,31 @@ ClubEvent _event({
     attendanceOpen: attendanceOpen,
     attendeeIds: attendeeIds,
     checkedInCount: checkedInCount,
+  );
+}
+
+DuesPayment _payment(String userId, String status, {int amount = 20000}) {
+  return DuesPayment(
+    userId: userId,
+    userName: userId,
+    duesId: 'nov',
+    duesTitle: '11월 회비',
+    amount: amount,
+    status: status,
+  );
+}
+
+LedgerEntry _entry(String id, String kind, int amount, DateTime occurredAt) {
+  return LedgerEntry(
+    id: id,
+    kind: kind,
+    amount: amount,
+    title: id,
+    occurredAt: occurredAt,
+    category: '기타',
+    memo: '',
+    actorId: 'owner',
+    actorName: '회장',
   );
 }
 

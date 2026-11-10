@@ -15,6 +15,12 @@ rules_version = '2';
 // clubs/{clubId}/events/{eventId}/proofs/{uid}: token. Written by the member who scanned
 //   the QR and compared with qr/current by the attendance rule. Members cannot read it,
 //   so a token cannot be copied from another member's check-in
+// clubs/{clubId}/dues/{id}: title, amount, dueAt, repeat, target, targetIds, createdAt, createdBy
+// clubs/{clubId}/dues/{id}/payments/{uid}: userId, userName, amount, status,
+//   optional depositName, reportedAt, confirmedAt, confirmedBy.
+//   Members can get only their own document. Listing every payment is staff only.
+// clubs/{clubId}/ledger/{id}: kind, amount, title, occurredAt, category, memo,
+//   actorId, actorName, createdAt, optional receiptUrl. Members can read. Staff write.
 // inviteCodes/{code}: clubId, ownerId, expiresAt
 
 service cloud.firestore {
@@ -189,6 +195,67 @@ service cloud.firestore {
         && (!('actorName' in data) || (data.actorName is string && data.actorName.size() <= 30));
     }
 
+    function isValidDues(data) {
+      return data.keys().hasOnly([
+          'title', 'amount', 'dueAt', 'repeat', 'target', 'targetIds', 'createdAt', 'createdBy'
+        ])
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 40
+        && data.amount is int
+        && data.amount > 0
+        && data.dueAt is timestamp
+        && data.repeat in ['monthly', 'once']
+        && data.target in ['all', 'selected']
+        && data.targetIds is list
+        && data.targetIds.size() <= 300
+        && data.createdAt is timestamp
+        && data.createdBy is string;
+    }
+
+    function isValidPayment(data) {
+      return data.keys().hasAll(['userId', 'userName', 'amount', 'status'])
+        && data.keys().hasOnly([
+          'userId', 'userName', 'amount', 'status',
+          'depositName', 'reportedAt', 'confirmedAt', 'confirmedBy'
+        ])
+        && data.userId is string
+        && data.userName is string
+        && data.userName.size() <= 30
+        && data.amount is int
+        && data.amount > 0
+        && data.status in ['unpaid', 'reported', 'paid']
+        && (!('depositName' in data) || (data.depositName is string && data.depositName.size() <= 30))
+        && (!('reportedAt' in data) || data.reportedAt is timestamp)
+        && (!('confirmedAt' in data) || data.confirmedAt is timestamp)
+        && (!('confirmedBy' in data) || data.confirmedBy is string);
+    }
+
+    function isValidLedger(data) {
+      return data.keys().hasAll([
+          'kind', 'amount', 'title', 'occurredAt', 'category', 'memo', 'actorId', 'actorName', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'kind', 'amount', 'title', 'occurredAt', 'category', 'memo',
+          'actorId', 'actorName', 'createdAt', 'receiptUrl'
+        ])
+        && data.kind in ['income', 'expense']
+        && data.amount is int
+        && data.amount > 0
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 80
+        && data.occurredAt is timestamp
+        && data.category in ['물품 구매', '활동비', '모임 지원', '기타']
+        && data.memo is string
+        && data.memo.size() <= 200
+        && data.actorId is string
+        && data.actorName is string
+        && data.actorName.size() <= 30
+        && data.createdAt is timestamp
+        && (!('receiptUrl' in data) || (data.receiptUrl is string && data.receiptUrl.size() < 700000));
+    }
+
     function isValidInvite(data) {
       return data.keys().hasOnly(['clubId', 'ownerId', 'expiresAt'])
         && data.clubId is string
@@ -333,6 +400,70 @@ service cloud.firestore {
       match /activities/{activityId} {
         allow read: if isOwner(clubId) || isActiveMember(clubId);
         allow write: if false;
+      }
+
+      match /dues/{duesId} {
+        allow read: if isOwner(clubId) || isActiveMember(clubId);
+        allow create: if isStaff(clubId)
+          && isValidDues(request.resource.data)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+        allow update: if isStaff(clubId)
+          && isValidDues(request.resource.data)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isStaff(clubId);
+
+        match /payments/{uid} {
+          allow get: if isSelf(uid) || isStaff(clubId);
+          allow list: if isStaff(clubId);
+          allow create: if isStaff(clubId)
+            && isValidPayment(request.resource.data)
+            && request.resource.data.userId == uid
+            && request.resource.data.status == 'unpaid'
+            && !('depositName' in request.resource.data)
+            && !('reportedAt' in request.resource.data)
+            && !('confirmedAt' in request.resource.data)
+            && !('confirmedBy' in request.resource.data);
+          allow update: if (
+              isSelf(uid)
+              && isActiveMember(clubId)
+              && resource.data.status == 'unpaid'
+              && isValidPayment(request.resource.data)
+              && request.resource.data.status == 'reported'
+              && request.resource.data.userId == resource.data.userId
+              && request.resource.data.userName == resource.data.userName
+              && request.resource.data.amount == resource.data.amount
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'depositName', 'reportedAt'])
+              && request.resource.data.depositName is string
+              && request.resource.data.depositName.size() > 0
+              && request.resource.data.depositName.size() <= 30
+              && request.resource.data.reportedAt == request.time
+            ) || (
+              isStaff(clubId)
+              && resource.data.status == 'reported'
+              && isValidPayment(request.resource.data)
+              && request.resource.data.status == 'paid'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'confirmedAt', 'confirmedBy'])
+              && request.resource.data.confirmedAt == request.time
+              && request.resource.data.confirmedBy == request.auth.uid
+            );
+          allow delete: if false;
+        }
+      }
+
+      match /ledger/{entryId} {
+        allow read: if isOwner(clubId) || isActiveMember(clubId);
+        allow create: if isStaff(clubId)
+          && isValidLedger(request.resource.data)
+          && request.resource.data.actorId == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+        allow update: if isStaff(clubId)
+          && isValidLedger(request.resource.data)
+          && request.resource.data.actorId == resource.data.actorId
+          && request.resource.data.actorName == resource.data.actorName
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isStaff(clubId);
       }
     }
 

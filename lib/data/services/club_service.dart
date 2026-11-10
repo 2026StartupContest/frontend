@@ -4,9 +4,11 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_proj/core/attendance.dart';
+import 'package:flutter_proj/core/club_access.dart';
 import 'package:flutter_proj/core/kst.dart';
 import 'package:flutter_proj/core/meeting_filter.dart';
 import 'package:flutter_proj/data/gateways.dart';
+import 'package:flutter_proj/models/accounting.dart';
 import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
@@ -1136,6 +1138,277 @@ class FirebaseClubService implements ClubGateway {
   }
 
   @override
+  Future<AccountingData> loadAccounting({
+    required String uid,
+    required String clubId,
+  }) async {
+    final user = await getUser(uid);
+    final club = await _readClub(clubId);
+    if (user == null || club == null) {
+      throw StateError('동아리 정보를 불러오지 못했어요.');
+    }
+    final memberSnap = await _clubs.doc(clubId).collection('members').doc(uid).get();
+    var role = memberSnap.data()?['role'] as String? ?? 'member';
+    if (club.ownerId == uid) role = 'owner';
+    final userName = (memberSnap.data()?['userName'] as String?)?.trim();
+    final staff = ClubAccess.showsSettings(role);
+    final duesSnap = await _clubs.doc(clubId).collection('dues').get();
+    final rounds = duesSnap.docs.map(_duesFrom).toList()
+      ..sort(
+        (a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)),
+      );
+    final current = rounds.isEmpty ? null : rounds.first;
+    final currentPayments = <DuesPayment>[];
+    if (current != null && staff) {
+      final paySnap = await _clubs
+          .doc(clubId)
+          .collection('dues')
+          .doc(current.id)
+          .collection('payments')
+          .get();
+      currentPayments.addAll(paySnap.docs.map((doc) => _paymentFrom(doc, current)));
+    }
+    final myPayments = <DuesPayment>[];
+    for (final round in rounds) {
+      final pay = await _clubs
+          .doc(clubId)
+          .collection('dues')
+          .doc(round.id)
+          .collection('payments')
+          .doc(uid)
+          .get();
+      if (pay.exists) myPayments.add(_paymentFrom(pay, round));
+    }
+    if (current != null && !staff) {
+      currentPayments.addAll(
+        myPayments.where((payment) => payment.duesId == current.id),
+      );
+    }
+    final members = staff
+        ? (await _mapDocs(_clubs.doc(clubId).collection('members'), (doc) {
+            final data = doc.data();
+            return ClubMember(
+              userId: data['userId'] as String? ?? doc.id,
+              userName: data['userName'] as String? ?? '',
+              role: data['role'] as String? ?? 'member',
+              status: data['status'] as String? ?? 'active',
+            );
+          })).where((member) => member.status == 'active').toList()
+        : <ClubMember>[];
+    members.sort((a, b) => a.userName.compareTo(b.userName));
+    final ledgerSnap = await _clubs.doc(clubId).collection('ledger').get();
+    final entries = ledgerSnap.docs.map(_ledgerFrom).toList()
+      ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+    final notices = await _mapDocs(
+      _clubs.doc(clubId).collection('notices'),
+      (doc) => ClubNotice(
+        id: doc.id,
+        title: doc.data()['title'] as String? ?? '',
+        body: doc.data()['body'] as String? ?? '',
+        createdAt: _kst(doc.data()['createdAt']) ?? kstNow(),
+        unread: doc.data()['unread'] as bool? ?? false,
+        kind: doc.data()['kind'] as String? ?? 'info',
+      ),
+    );
+    notices.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return AccountingData(
+      club: club,
+      role: role,
+      userId: uid,
+      userName: userName == null || userName.isEmpty ? user.name : userName,
+      members: members,
+      rounds: rounds,
+      currentPayments: currentPayments,
+      myPayments: myPayments,
+      entries: entries,
+      notices: notices,
+    );
+  }
+
+  @override
+  Future<void> registerDues({
+    required String clubId,
+    required String actorId,
+    required String title,
+    required int amount,
+    required DateTime dueAt,
+    required String repeat,
+    required bool allMembers,
+    required List<DuesTarget> targets,
+  }) async {
+    final name = title.trim();
+    if (name.isEmpty) throw StateError('회비 이름을 입력해 주세요.');
+    if (amount <= 0) throw StateError('금액을 입력해 주세요.');
+    if (targets.isEmpty) throw StateError('납부 대상을 골라 주세요.');
+    final duesRef = _clubs.doc(clubId).collection('dues').doc();
+    final batch = _db.batch();
+    batch.set(duesRef, {
+      'title': name,
+      'amount': amount,
+      'dueAt': Timestamp.fromDate(kstWallToInstant(dueAt)),
+      'repeat': repeat == 'monthly' ? 'monthly' : 'once',
+      'target': allMembers ? 'all' : 'selected',
+      'targetIds': [for (final target in targets) target.userId],
+      'createdBy': actorId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    for (final target in targets) {
+      batch.set(duesRef.collection('payments').doc(target.userId), {
+        'userId': target.userId,
+        'userName': target.userName.trim(),
+        'amount': amount,
+        'status': 'unpaid',
+      });
+    }
+    await batch.commit();
+  }
+
+  @override
+  Future<void> reportDuesPayment({
+    required String clubId,
+    required String duesId,
+    required String userId,
+    required String depositName,
+  }) async {
+    final name = depositName.trim();
+    if (name.isEmpty) throw StateError('입금자명을 입력해 주세요.');
+    await _clubs
+        .doc(clubId)
+        .collection('dues')
+        .doc(duesId)
+        .collection('payments')
+        .doc(userId)
+        .update({
+          'status': 'reported',
+          'depositName': name,
+          'reportedAt': FieldValue.serverTimestamp(),
+        });
+  }
+
+  @override
+  Future<void> confirmDuesPayment({
+    required String clubId,
+    required String duesId,
+    required String userId,
+    required String actorId,
+    required String actorName,
+    required String ledgerTitle,
+    required int amount,
+  }) async {
+    final payment = _clubs
+        .doc(clubId)
+        .collection('dues')
+        .doc(duesId)
+        .collection('payments')
+        .doc(userId);
+    final batch = _db.batch();
+    batch.update(payment, {
+      'status': 'paid',
+      'confirmedAt': FieldValue.serverTimestamp(),
+      'confirmedBy': actorId,
+    });
+    batch.set(_clubs.doc(clubId).collection('ledger').doc(), {
+      'kind': 'income',
+      'amount': amount,
+      'title': ledgerTitle.trim(),
+      'occurredAt': FieldValue.serverTimestamp(),
+      'category': '활동비',
+      'memo': '회비 입금 확인',
+      'actorId': actorId,
+      'actorName': actorName.trim(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> remindUnpaidDues({
+    required String clubId,
+    required String actorId,
+    required String title,
+    required String body,
+  }) async {
+    final text = body.trim();
+    if (text.isEmpty) throw StateError('알림 내용을 입력해 주세요.');
+    if (text.length > 200) throw StateError('알림은 200자까지 보낼 수 있어요.');
+    await _clubs.doc(clubId).collection('notices').add({
+      'title': title.trim().isEmpty ? '회비 납부 안내' : title.trim(),
+      'body': text,
+      'kind': 'dues',
+      'unread': true,
+      'actorId': actorId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<void> saveLedgerEntry({
+    required String clubId,
+    required String actorId,
+    required String actorName,
+    String? entryId,
+    required String kind,
+    required int amount,
+    required String title,
+    required DateTime occurredAt,
+    required String category,
+    required String memo,
+    ImagePayload? receipt,
+  }) async {
+    final name = title.trim();
+    if (name.isEmpty) throw StateError('사용처를 입력해 주세요.');
+    if (amount <= 0) throw StateError('금액을 입력해 주세요.');
+    final ref = entryId == null
+        ? _clubs.doc(clubId).collection('ledger').doc()
+        : _clubs.doc(clubId).collection('ledger').doc(entryId);
+    String? receiptUrl;
+    if (receipt != null) {
+      receiptUrl = await _uploadBytes('clubs/$clubId/ledger/${ref.id}', receipt);
+    }
+    if (entryId == null) {
+      await ref.set({
+        'kind': kind == 'income' ? 'income' : 'expense',
+        'amount': amount,
+        'title': name,
+        'occurredAt': Timestamp.fromDate(kstWallToInstant(occurredAt)),
+        'category': category,
+        'memo': memo.trim(),
+        'receiptUrl': ?receiptUrl,
+        'actorId': actorId,
+        'actorName': actorName.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+    final existing = await ref.get();
+    final data = existing.data();
+    if (data == null) throw StateError('거래를 찾지 못했어요.');
+    await ref.update({
+      'kind': kind == 'income' ? 'income' : 'expense',
+      'amount': amount,
+      'title': name,
+      'occurredAt': Timestamp.fromDate(kstWallToInstant(occurredAt)),
+      'category': category,
+      'memo': memo.trim(),
+      if (receiptUrl != null)
+        'receiptUrl': receiptUrl
+      else if (data['receiptUrl'] is String)
+        'receiptUrl': data['receiptUrl'],
+      'actorId': data['actorId'],
+      'actorName': data['actorName'],
+      'createdAt': data['createdAt'],
+    });
+  }
+
+  @override
+  Future<void> deleteLedgerEntry({
+    required String clubId,
+    required String entryId,
+  }) async {
+    await _clubs.doc(clubId).collection('ledger').doc(entryId).delete();
+  }
+
+  @override
   Future<void> markNoticesRead(String clubId) async {
     final snap = await _clubs
         .doc(clubId)
@@ -1289,6 +1562,58 @@ class FirebaseClubService implements ClubGateway {
       depositName: data['depositName'] as String?,
       feeReported: data['feeReported'] as bool? ?? false,
       requestedAt: _date(data['requestedAt']),
+    );
+  }
+
+  DuesRound _duesFrom(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
+    return DuesRound(
+      id: doc.id,
+      title: data['title'] as String? ?? '',
+      amount: (data['amount'] as num?)?.toInt() ?? 0,
+      dueAt: _kst(data['dueAt']),
+      repeat: data['repeat'] as String? ?? 'once',
+      target: data['target'] as String? ?? 'all',
+      targetIds: [
+        for (final id in (data['targetIds'] as List?) ?? const []) '$id',
+      ],
+      createdAt: _kst(data['createdAt']),
+    );
+  }
+
+  DuesPayment _paymentFrom(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+    DuesRound round,
+  ) {
+    final data = doc.data() ?? {};
+    return DuesPayment(
+      userId: data['userId'] as String? ?? doc.id,
+      userName: data['userName'] as String? ?? '',
+      duesId: round.id,
+      duesTitle: round.title,
+      amount: (data['amount'] as num?)?.toInt() ?? round.amount,
+      status: data['status'] as String? ?? 'unpaid',
+      dueAt: round.dueAt,
+      depositName: data['depositName'] as String?,
+      reportedAt: _kst(data['reportedAt']),
+      confirmedAt: _kst(data['confirmedAt']),
+    );
+  }
+
+  LedgerEntry _ledgerFrom(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
+    return LedgerEntry(
+      id: doc.id,
+      kind: data['kind'] as String? ?? 'expense',
+      amount: (data['amount'] as num?)?.toInt() ?? 0,
+      title: data['title'] as String? ?? '',
+      occurredAt: _kst(data['occurredAt']) ?? kstNow(),
+      category: data['category'] as String? ?? '기타',
+      memo: data['memo'] as String? ?? '',
+      receiptUrl: data['receiptUrl'] as String?,
+      actorId: data['actorId'] as String? ?? '',
+      actorName: data['actorName'] as String? ?? '',
+      createdAt: _kst(data['createdAt']),
     );
   }
 

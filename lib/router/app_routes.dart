@@ -34,4 +34,9 @@ abstract final class AppRoutes {
   static const memberRoles = '/clubs/members';
   static const joinInbox = '/clubs/join/inbox';
   static const scan = '/clubs/join/scan';
+  static const accounting = '/home/accounting';
+  static const duesSettings = '/home/accounting/dues/settings';
+  static const ledgerAll = '/home/accounting/ledger';
+  static const ledgerEntry = '/home/accounting/ledger/entry';
+  static const ledgerDetail = '/home/accounting/ledger/detail';
 }

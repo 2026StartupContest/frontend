@@ -293,6 +293,9 @@ class _MyPageScreenState extends State<MyPageScreen> {
               arguments: ClubArgs(widget.clubId),
             );
           }
+          if (tab == MoaTab.settlement) {
+            openAccounting(context, widget.clubId);
+          }
           if (tab == MoaTab.reservation) {
             Navigator.pushNamed(
               context,

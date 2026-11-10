@@ -251,31 +251,38 @@ class _MeetingFormScreenState extends State<MeetingFormScreen> {
                   _picker('구성원 ${_attendees.length}명 선택됨', _pickPeople),
                   const SizedBox(height: 16),
                   _label('모임 회비'),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.chip)),
-                    child: Column(
-                      children: [
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('참가비 받기', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          subtitle: const Text('정산과 회비 장부에 자동으로 연결돼요', style: TextStyle(fontSize: 11)),
-                          value: _charge,
-                          activeThumbColor: AppColors.white,
-                          activeTrackColor: AppColors.primary,
-                          onChanged: (value) => setState(() => _charge = value),
-                        ),
-                        if (_charge) ...[
-                          _moneyRow('1인 금액', _fee == null ? '입력' : formatWon(_fee!), () async {
-                            final next = await _askAmount(_fee);
-                            if (next != null) setState(() => _fee = next);
-                          }),
-                          _moneyRow('납부 기한', _due == null ? '선택' : formatDueLabel(_due!), () async {
-                            final picked = await _pickDate(_due ?? _date);
-                            if (picked != null) setState(() => _due = picked);
-                          }),
+                  Material(
+                    color: AppColors.white,
+                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(19),
+                      side: const BorderSide(color: AppColors.chip),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('참가비 받기', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            subtitle: const Text('정산과 회비 장부에 자동으로 연결돼요', style: TextStyle(fontSize: 11)),
+                            value: _charge,
+                            activeThumbColor: AppColors.white,
+                            activeTrackColor: AppColors.primary,
+                            onChanged: (value) => setState(() => _charge = value),
+                          ),
+                          if (_charge) ...[
+                            _moneyRow('1인 금액', _fee == null ? '입력' : formatWon(_fee!), () async {
+                              final next = await _askAmount(_fee);
+                              if (next != null) setState(() => _fee = next);
+                            }),
+                            _moneyRow('납부 기한', _due == null ? '선택' : formatDueLabel(_due!), () async {
+                              final picked = await _pickDate(_due ?? _date);
+                              if (picked != null) setState(() => _due = picked);
+                            }),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),

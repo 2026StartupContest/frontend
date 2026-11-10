@@ -1,3 +1,4 @@
+import 'package:flutter_proj/models/accounting.dart';
 import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
@@ -225,5 +226,64 @@ abstract class ClubGateway {
     required String actorId,
     required String actorName,
     String? reason,
+  });
+
+  Future<AccountingData> loadAccounting({
+    required String uid,
+    required String clubId,
+  });
+
+  Future<void> registerDues({
+    required String clubId,
+    required String actorId,
+    required String title,
+    required int amount,
+    required DateTime dueAt,
+    required String repeat,
+    required bool allMembers,
+    required List<DuesTarget> targets,
+  });
+
+  Future<void> reportDuesPayment({
+    required String clubId,
+    required String duesId,
+    required String userId,
+    required String depositName,
+  });
+
+  Future<void> confirmDuesPayment({
+    required String clubId,
+    required String duesId,
+    required String userId,
+    required String actorId,
+    required String actorName,
+    required String ledgerTitle,
+    required int amount,
+  });
+
+  Future<void> remindUnpaidDues({
+    required String clubId,
+    required String actorId,
+    required String title,
+    required String body,
+  });
+
+  Future<void> saveLedgerEntry({
+    required String clubId,
+    required String actorId,
+    required String actorName,
+    String? entryId,
+    required String kind,
+    required int amount,
+    required String title,
+    required DateTime occurredAt,
+    required String category,
+    required String memo,
+    ImagePayload? receipt,
+  });
+
+  Future<void> deleteLedgerEntry({
+    required String clubId,
+    required String entryId,
   });
 }

@@ -49,6 +49,21 @@ class ClubArgs {
   final String clubId;
 }
 
+class AccountingArgs {
+  const AccountingArgs(this.clubId, [this.segment = 'dues', this.mine = false]);
+
+  final String clubId;
+  final String segment;
+  final bool mine;
+}
+
+class LedgerEntryArgs {
+  const LedgerEntryArgs({required this.clubId, this.entryId});
+
+  final String clubId;
+  final String? entryId;
+}
+
 class MeetingArgs {
   const MeetingArgs({
     required this.clubId,

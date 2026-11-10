@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_proj/core/accounting.dart';
 import 'package:flutter_proj/data/gateways.dart';
 import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/router/app_routes.dart';
@@ -31,6 +32,18 @@ void goClubHome(BuildContext context, String clubId) {
       arguments: HomeArgs(clubId),
     );
   }
+}
+
+void openAccounting(
+  BuildContext context,
+  String clubId, {
+  String segment = AccountingSegment.dues,
+}) {
+  Navigator.pushNamed(
+    context,
+    AppRoutes.accounting,
+    arguments: AccountingArgs(clubId, segment),
+  );
 }
 
 class MoaDependencies {
