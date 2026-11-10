@@ -17,7 +17,17 @@ import 'package:flutter_proj/screens/home_screen.dart';
 import 'package:flutter_proj/screens/join_inbox_screen.dart';
 import 'package:flutter_proj/screens/meeting_attendees_screen.dart';
 import 'package:flutter_proj/screens/meeting_detail_screen.dart';
+import 'package:flutter_proj/data/place_dummy.dart';
 import 'package:flutter_proj/screens/meeting_form_screen.dart';
+import 'package:flutter_proj/screens/place_confirm_screen.dart';
+import 'package:flutter_proj/screens/place_detail_screen.dart';
+import 'package:flutter_proj/screens/place_list_screen.dart';
+import 'package:flutter_proj/screens/place_menu_screen.dart';
+import 'package:flutter_proj/screens/place_paid_screen.dart';
+import 'package:flutter_proj/screens/place_pay_screen.dart';
+import 'package:flutter_proj/screens/place_reserve_screen.dart';
+import 'package:flutter_proj/screens/place_reserved_screen.dart';
+import 'package:flutter_proj/screens/place_search_screen.dart';
 import 'package:flutter_proj/screens/meetings_screen.dart';
 import 'package:flutter_proj/screens/my_page_screen.dart';
 import 'package:flutter_proj/screens/member_roles_screen.dart';
@@ -112,6 +122,33 @@ abstract final class AppRouter {
       AppRoutes.attendanceRoster => AttendanceRosterScreen(
         deps: deps,
         args: settings.arguments! as MeetingArgs,
+      ),
+      AppRoutes.places => PlaceSearchScreen(
+        clubId: (settings.arguments! as PlaceFlowArgs).clubId,
+      ),
+      AppRoutes.placeMenu => PlaceMenuScreen(
+        args: settings.arguments! as PlaceFlowArgs,
+      ),
+      AppRoutes.placeReserve => PlaceReserveScreen(
+        args: settings.arguments! as PlaceFlowArgs,
+      ),
+      AppRoutes.placeConfirm => PlaceConfirmScreen(
+        args: settings.arguments! as PlaceFlowArgs,
+      ),
+      AppRoutes.placeReserved => PlaceReservedScreen(
+        args: settings.arguments! as PlaceFlowArgs,
+      ),
+      AppRoutes.reservations => PlaceListScreen(
+        args: settings.arguments! as PlaceFlowArgs,
+      ),
+      AppRoutes.reservationDetail => PlaceDetailScreen(
+        args: settings.arguments! as PlaceFlowArgs,
+      ),
+      AppRoutes.reservationPay => PlacePayScreen(
+        args: settings.arguments! as PlaceFlowArgs,
+      ),
+      AppRoutes.reservationPaid => PlacePaidScreen(
+        args: settings.arguments! as PlaceFlowArgs,
       ),
       AppRoutes.clubSettings => ClubSettingsScreen(
         deps: deps,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/club_access.dart';
+import 'package:flutter_proj/data/place_dummy.dart';
 import 'package:flutter_proj/core/format.dart';
 import 'package:flutter_proj/core/kst.dart';
 import 'package:flutter_proj/core/meeting_filter.dart';
@@ -270,7 +271,13 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
                           ),
                         ],
                         const SizedBox(height: 16),
-                        const _PlaceBanner(),
+                        _PlaceBanner(
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.places,
+                            arguments: PlaceFlowArgs(clubId: widget.clubId),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -281,6 +288,13 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
         selected: MoaTab.home,
         onSelected: (tab) {
           if (tab == MoaTab.home) Navigator.pop(context);
+          if (tab == MoaTab.reservation) {
+            Navigator.pushNamed(
+              context,
+              AppRoutes.places,
+              arguments: PlaceFlowArgs(clubId: widget.clubId),
+            );
+          }
           if (tab == MoaTab.attendance) {
             Navigator.pushNamed(
               context,
@@ -627,52 +641,58 @@ class _MeetingRow extends StatelessWidget {
 }
 
 class _PlaceBanner extends StatelessWidget {
-  const _PlaceBanner();
+  const _PlaceBanner({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF6E6),
-        borderRadius: BorderRadius.circular(17),
-      ),
-      child: const Row(
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: Color(0xFFFFF2DF),
-              borderRadius: BorderRadius.all(Radius.circular(12)),
-            ),
-            child: SizedBox(
-              width: 42,
-              height: 42,
-              child: Icon(
-                Icons.restaurant_outlined,
-                size: 20,
-                color: AppColors.ink,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(17),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF6E6),
+          borderRadius: BorderRadius.circular(17),
+        ),
+        child: const Row(
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Color(0xFFFFF2DF),
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+              ),
+              child: SizedBox(
+                width: 42,
+                height: 42,
+                child: Icon(
+                  Icons.restaurant_outlined,
+                  size: 20,
+                  color: AppColors.ink,
+                ),
               ),
             ),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '뒤풀이 장소가 필요하세요?',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '단체 예약 가능한 곳을 모아봤어요',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF9A7D4C)),
-                ),
-              ],
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '뒤풀이 장소가 필요하세요?',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '단체 예약 가능한 곳을 모아봤어요',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF9A7D4C)),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Icon(Icons.chevron_right, color: AppColors.bud),
-        ],
+            Icon(Icons.chevron_right, color: AppColors.bud),
+          ],
+        ),
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/attendance.dart';
+import 'package:flutter_proj/data/place_dummy.dart';
 import 'package:flutter_proj/core/club_access.dart';
 import 'package:flutter_proj/core/format.dart';
 import 'package:flutter_proj/core/kst.dart';
@@ -111,6 +112,13 @@ class _AttendanceHomeScreenState extends State<AttendanceHomeScreen> {
         selected: MoaTab.attendance,
         onSelected: (tab) {
           if (tab == MoaTab.home) goClubHome(context, widget.clubId);
+          if (tab == MoaTab.reservation) {
+            Navigator.pushNamed(
+              context,
+              AppRoutes.places,
+              arguments: PlaceFlowArgs(clubId: widget.clubId),
+            );
+          }
           if (tab == MoaTab.myPage) {
             Navigator.pushReplacementNamed(
               context,
@@ -193,8 +201,10 @@ class _AttendanceHomeScreenState extends State<AttendanceHomeScreen> {
                         _meetingArgs(data, current),
                       )
                     : null,
-                onScan: () =>
-                    _push(AppRoutes.attendanceScan, _meetingArgs(data, current)),
+                onScan: () => _push(
+                  AppRoutes.attendanceScan,
+                  _meetingArgs(data, current),
+                ),
               ),
               const SizedBox(height: 10),
               _RateCard(
