@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/auth_error_message.dart';
+import 'package:flutter_proj/data/place_dummy.dart';
 import 'package:flutter_proj/core/club_access.dart';
 import 'package:flutter_proj/core/theme/app_colors.dart';
 import 'package:flutter_proj/models/app_user.dart';
@@ -295,8 +296,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
           if (tab == MoaTab.reservation) {
             Navigator.pushNamed(
               context,
-              AppRoutes.meetings,
-              arguments: ClubArgs(widget.clubId),
+              AppRoutes.places,
+              arguments: PlaceFlowArgs(clubId: widget.clubId),
             );
           }
         },

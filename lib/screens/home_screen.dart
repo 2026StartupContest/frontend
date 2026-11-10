@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/club_access.dart';
+import 'package:flutter_proj/data/place_dummy.dart';
 import 'package:flutter_proj/core/kst.dart';
 import 'package:flutter_proj/core/meeting_filter.dart';
 import 'package:flutter_proj/core/theme/app_colors.dart';
@@ -255,6 +256,13 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: MoaBottomNav(
         selected: MoaTab.home,
         onSelected: (tab) {
+          if (tab == MoaTab.reservation) {
+            Navigator.pushNamed(
+              context,
+              AppRoutes.places,
+              arguments: PlaceFlowArgs(clubId: _clubId),
+            );
+          }
           if (tab == MoaTab.attendance) {
             Navigator.pushNamed(
               context,

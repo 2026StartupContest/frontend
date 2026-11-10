@@ -21,6 +21,15 @@ abstract final class AppRoutes {
   static const attendanceManage = '/home/meetings/attendance';
   static const attendanceQr = '/home/meetings/attendance/qr';
   static const attendanceRoster = '/home/meetings/attendance/roster';
+  static const places = '/home/places';
+  static const placeMenu = '/home/places/menu';
+  static const placeReserve = '/home/places/reserve';
+  static const placeConfirm = '/home/places/confirm';
+  static const placeReserved = '/home/places/reserved';
+  static const reservations = '/home/reservations';
+  static const reservationDetail = '/home/reservations/detail';
+  static const reservationPay = '/home/reservations/pay';
+  static const reservationPaid = '/home/reservations/paid';
   static const clubSettings = '/clubs/settings';
   static const memberRoles = '/clubs/members';
   static const joinInbox = '/clubs/join/inbox';
