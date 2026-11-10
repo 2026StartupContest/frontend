@@ -218,10 +218,25 @@ class _HomeScreenState extends State<HomeScreen> {
                         QuickActions(
                           onAction: (key) {
                             if (key == 'dues') {
-                              openAccounting(context, _clubId, segment: AccountingSegment.dues);
+                              openAccounting(
+                                context,
+                                _clubId,
+                                segment: AccountingSegment.dues,
+                              );
                             }
                             if (key == 'ledger') {
-                              openAccounting(context, _clubId, segment: AccountingSegment.ledger);
+                              openAccounting(
+                                context,
+                                _clubId,
+                                segment: AccountingSegment.ledger,
+                              );
+                            }
+                            if (key == 'settle') {
+                              Navigator.pushNamed(
+                                context,
+                                AppRoutes.settlements,
+                                arguments: ClubArgs(_clubId),
+                              ).then((_) => _load());
                             }
                           },
                         ),

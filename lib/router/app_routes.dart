@@ -39,4 +39,10 @@ abstract final class AppRoutes {
   static const ledgerAll = '/home/accounting/ledger';
   static const ledgerEntry = '/home/accounting/ledger/entry';
   static const ledgerDetail = '/home/accounting/ledger/detail';
+  static const settlements = '/home/settlements';
+  static const settlementCreate = '/home/settlements/create';
+  static const settlementRounds = '/home/settlements/rounds';
+  static const settlementAttendees = '/home/settlements/attendees';
+  static const settlementDetail = '/home/settlements/detail';
+  static const settlementMembers = '/home/settlements/members';
 }

@@ -41,6 +41,12 @@ import 'package:flutter_proj/screens/ledger_screens.dart';
 import 'package:flutter_proj/screens/login_screen.dart';
 import 'package:flutter_proj/screens/no_club_screen.dart';
 import 'package:flutter_proj/screens/signup_done_screen.dart';
+import 'package:flutter_proj/screens/settlement_attendees_screen.dart';
+import 'package:flutter_proj/screens/settlement_create_screen.dart';
+import 'package:flutter_proj/screens/settlement_detail_screen.dart';
+import 'package:flutter_proj/screens/settlement_list_screen.dart';
+import 'package:flutter_proj/screens/settlement_members_screen.dart';
+import 'package:flutter_proj/screens/settlement_rounds_screen.dart';
 import 'package:flutter_proj/screens/signup_screen.dart';
 
 abstract final class AppRouter {
@@ -185,6 +191,30 @@ abstract final class AppRouter {
       AppRoutes.ledgerDetail => LedgerDetailScreen(
         deps: deps,
         args: settings.arguments! as LedgerEntryArgs,
+      ),
+      AppRoutes.settlements => SettlementListScreen(
+        deps: deps,
+        clubId: (settings.arguments! as ClubArgs).clubId,
+      ),
+      AppRoutes.settlementCreate => SettlementCreateScreen(
+        deps: deps,
+        args: settings.arguments! as SettlementArgs,
+      ),
+      AppRoutes.settlementRounds => SettlementRoundsScreen(
+        deps: deps,
+        args: settings.arguments! as SettlementArgs,
+      ),
+      AppRoutes.settlementAttendees => SettlementAttendeesScreen(
+        deps: deps,
+        args: settings.arguments! as SettlementArgs,
+      ),
+      AppRoutes.settlementDetail => SettlementDetailScreen(
+        deps: deps,
+        args: settings.arguments! as SettlementArgs,
+      ),
+      AppRoutes.settlementMembers => SettlementMembersScreen(
+        deps: deps,
+        args: settings.arguments! as SettlementArgs,
       ),
       _ => LoginScreen(deps: deps),
     };

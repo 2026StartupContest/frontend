@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_proj/core/accounting.dart';
+import 'package:flutter_proj/core/settlement.dart';
 import 'package:flutter_proj/core/attendance.dart';
 import 'package:flutter_proj/core/auth_validators.dart';
 import 'package:flutter_proj/core/club_access.dart';
@@ -347,6 +348,44 @@ void main() {
     ]);
     expect(progress.percent, 50);
     expect(progress.unpaidCount, 1);
+  });
+
+  test('정산 지원금은 앞 차수부터 빼고 나머지는 앞 사람에게 1원씩 더한다', () {
+    final split = splitSettlement(
+      supportAmount: 20000,
+      rounds: const [
+        RoundSplitInput(id: 'a', index: 1, amount: 120000, attendeeIds: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10']),
+        RoundSplitInput(id: 'b', index: 2, amount: 54000, attendeeIds: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6']),
+      ],
+    );
+    expect(split.totalSpend, 174000);
+    expect(split.supportApplied, 20000);
+    expect(split.personalTotal, 154000);
+    expect(split.rounds.first.supportApplied, 20000);
+    expect(split.rounds.first.net, 100000);
+    expect(split.rounds.first.representativeShare, 10000);
+    expect(split.rounds.last.representativeShare, 9000);
+    final both = split.people.firstWhere((person) => person.userId == 'u1');
+    final firstOnly = split.people.firstWhere((person) => person.userId == 'u7');
+    expect(both.amount, 19000);
+    expect(both.roundAmounts, [10000, 9000]);
+    expect(firstOnly.amount, 10000);
+    expect(split.groups.map((group) => group.label).toList(), ['1·2차 참석 (6명)', '1차만 참석 (4명)']);
+
+    final remainder = splitWon(100, ['a', 'b', 'c']);
+    expect(remainder, {'a': 34, 'b': 33, 'c': 33});
+    expect(remainder.values.reduce((sum, amount) => sum + amount), 100);
+
+    final covered = splitSettlement(
+      supportAmount: 200000,
+      rounds: const [RoundSplitInput(id: 'a', index: 1, amount: 120000, attendeeIds: ['u1'])],
+    );
+    expect(covered.supportApplied, 120000);
+    expect(covered.people, isEmpty);
+    expect(
+      settlementReadyIssue(const [], supportAmount: 0),
+      '차수를 하나 이상 입력해 주세요.',
+    );
   });
 }
 

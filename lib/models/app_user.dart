@@ -64,6 +64,20 @@ class LedgerEntryArgs {
   final String? entryId;
 }
 
+class SettlementArgs {
+  const SettlementArgs({
+    required this.clubId,
+    this.settlementId,
+    this.roundId,
+    this.openConfirm = false,
+  });
+
+  final String clubId;
+  final String? settlementId;
+  final String? roundId;
+  final bool openConfirm;
+}
+
 class MeetingArgs {
   const MeetingArgs({
     required this.clubId,
