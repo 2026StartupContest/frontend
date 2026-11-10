@@ -5,13 +5,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 enum MoaTab { home, reservation, attendance, settlement, myPage }
 
 class MoaBottomNav extends StatelessWidget {
-  const MoaBottomNav({
-    super.key,
-    required this.selected,
-    this.onSelected,
-  });
+  const MoaBottomNav({super.key, this.selected, this.onSelected});
 
-  final MoaTab selected;
+  final MoaTab? selected;
   final ValueChanged<MoaTab>? onSelected;
 
   static const labels = ['홈', '예약', '출석', '회계', '마이페이지'];
@@ -78,12 +74,19 @@ class MoaBottomNav extends StatelessWidget {
                 child: Container(
                   width: 48,
                   height: 30,
-                  decoration: BoxDecoration(color: _pill, borderRadius: BorderRadius.circular(15)),
+                  decoration: BoxDecoration(
+                    color: _pill,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
                 ),
               ),
             Positioned(
               top: 14.7,
-              child: Icon(_icon(tab), size: 20, color: isSelected ? AppColors.primary : _muted),
+              child: Icon(
+                _icon(tab),
+                size: 20,
+                color: isSelected ? AppColors.primary : _muted,
+              ),
             ),
             Positioned(
               top: 42.2,
@@ -92,7 +95,12 @@ class MoaBottomNav extends StatelessWidget {
               child: Text(
                 labels[tab.index],
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11, height: 1.3, fontWeight: FontWeight.w700, color: _muted),
+                style: const TextStyle(
+                  fontSize: 11,
+                  height: 1.3,
+                  fontWeight: FontWeight.w700,
+                  color: _muted,
+                ),
               ),
             ),
           ],
@@ -124,7 +132,11 @@ class MoaBottomNav extends StatelessWidget {
                     ),
               border: Border.all(color: AppColors.white, width: 2.3),
               boxShadow: const [
-                BoxShadow(color: Color(0x265F4A20), offset: Offset(0, 3.7), blurRadius: 4.1),
+                BoxShadow(
+                  color: Color(0x265F4A20),
+                  offset: Offset(0, 3.7),
+                  blurRadius: 4.1,
+                ),
               ],
             ),
             child: isSelected
@@ -139,7 +151,12 @@ class MoaBottomNav extends StatelessWidget {
           child: Text(
             '출석',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, height: 1.3, fontWeight: FontWeight.w700, color: _muted),
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.3,
+              fontWeight: FontWeight.w700,
+              color: _muted,
+            ),
           ),
         ),
       ],

@@ -4,22 +4,21 @@
 - Project: `moa-club`
 - Database: `moa-db`
 - Storage bucket: `moa-club.firebasestorage.app`
-- Stamp: `20261110T161817Z`
-- Change: dues, payments, and ledger rules, plus ledger receipt storage path
+- Stamp: `20261110T172252Z`
+- Change: N차 정산 rules. Notice kind `settlement` is staff-only. Draft settlements are staff-only. Members can read collecting and done settlements, and only their own share.
 
 ## Previous revision (local snapshot)
-Captured from the live rules immediately before this deploy.
+Captured from the repository rules immediately before this deploy. Those rules are the accounting release that was already live.
 
-- Firestore: `pre-accounting-20261110T161817Z.rules`
-- Storage: `pre-accounting-20261110T161817Z.storage.rules`
+- Firestore: `pre-settlement-20261110T172252Z.rules`
+- Storage was not changed. The accounting snapshot `pre-accounting-20261110T161817Z.storage.rules` is still in this folder.
 
-The earlier attendance snapshot `pre-attendance-20261110T142647Z.rules` is still in this folder. Restoring it would also remove the attendance rules that are already live.
+The earlier attendance snapshot `pre-attendance-20261110T142647Z.rules` is still in this folder. Restoring it would also remove the attendance and accounting rules that are already live.
 
 ## Rollback (CLI)
 ```bash
-cp .firebase-rules-history/pre-accounting-20261110T161817Z.rules firestore.rules
-cp .firebase-rules-history/pre-accounting-20261110T161817Z.storage.rules storage.rules
-firebase deploy --only firestore:moa-db:rules,storage --project moa-club --non-interactive
+cp .firebase-rules-history/pre-settlement-20261110T172252Z.rules firestore.rules
+firebase deploy --only firestore:moa-db:rules --project moa-club --non-interactive
 ```
 
 ## Rollback (Console)

@@ -5,6 +5,7 @@ import 'package:flutter_proj/models/accounting.dart';
 import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
+import 'package:flutter_proj/models/settlement.dart';
 import 'package:flutter_proj/router/open_launch.dart';
 import 'package:flutter_proj/screens/login_screen.dart';
 import 'package:flutter_proj/widgets/moa_bottom_nav.dart';
@@ -428,5 +429,99 @@ class _FakeClubs implements ClubGateway {
   Future<void> deleteLedgerEntry({
     required String clubId,
     required String entryId,
+  }) async {}
+
+  @override
+  Future<SettlementListData> loadSettlementList({
+    required String uid,
+    required String clubId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<SettlementDetailData> loadSettlement({
+    required String uid,
+    required String clubId,
+    required String settlementId,
+    bool allShares = false,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<SettlementDraftData> loadSettlementDraft({
+    required String uid,
+    required String clubId,
+    String? settlementId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<String> saveSettlementDraft({
+    required String clubId,
+    required String actorId,
+    String? settlementId,
+    required String title,
+    required String meetingId,
+    required String meetingTitle,
+    DateTime? meetingAt,
+    required int supportAmount,
+    required String receiverUserId,
+    required String receiverName,
+    required String bankName,
+    required String bankAccount,
+    required DateTime dueAt,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> saveSettlementRounds({
+    required String clubId,
+    required String settlementId,
+    required List<SettlementRound> rounds,
+  }) async {}
+
+  @override
+  Future<void> saveRoundAttendees({
+    required String clubId,
+    required String settlementId,
+    required String roundId,
+    required List<String> attendeeIds,
+  }) async {}
+
+  @override
+  Future<void> calculateSettlement({
+    required String clubId,
+    required String settlementId,
+  }) async {}
+
+  @override
+  Future<void> confirmSettlement({
+    required String clubId,
+    required String settlementId,
+    required String actorId,
+    required String actorName,
+  }) async {}
+
+  @override
+  Future<void> reportSettlementPayment({
+    required String clubId,
+    required String settlementId,
+    required String userId,
+    required String depositName,
+  }) async {}
+
+  @override
+  Future<void> confirmSettlementShare({
+    required String clubId,
+    required String settlementId,
+    required String userId,
+    required String actorId,
+  }) async {}
+
+  @override
+  Future<void> remindUnsettled({
+    required String clubId,
+    required String settlementId,
+    required String actorId,
   }) async {}
 }

@@ -1,4 +1,5 @@
 import 'package:flutter_proj/models/accounting.dart';
+import 'package:flutter_proj/models/settlement.dart';
 import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
@@ -285,5 +286,84 @@ abstract class ClubGateway {
   Future<void> deleteLedgerEntry({
     required String clubId,
     required String entryId,
+  });
+
+  Future<SettlementListData> loadSettlementList({
+    required String uid,
+    required String clubId,
+  });
+
+  Future<SettlementDetailData> loadSettlement({
+    required String uid,
+    required String clubId,
+    required String settlementId,
+    bool allShares = false,
+  });
+
+  Future<SettlementDraftData> loadSettlementDraft({
+    required String uid,
+    required String clubId,
+    String? settlementId,
+  });
+
+  Future<String> saveSettlementDraft({
+    required String clubId,
+    required String actorId,
+    String? settlementId,
+    required String title,
+    required String meetingId,
+    required String meetingTitle,
+    DateTime? meetingAt,
+    required int supportAmount,
+    required String receiverUserId,
+    required String receiverName,
+    required String bankName,
+    required String bankAccount,
+    required DateTime dueAt,
+  });
+
+  Future<void> saveSettlementRounds({
+    required String clubId,
+    required String settlementId,
+    required List<SettlementRound> rounds,
+  });
+
+  Future<void> saveRoundAttendees({
+    required String clubId,
+    required String settlementId,
+    required String roundId,
+    required List<String> attendeeIds,
+  });
+
+  Future<void> calculateSettlement({
+    required String clubId,
+    required String settlementId,
+  });
+
+  Future<void> confirmSettlement({
+    required String clubId,
+    required String settlementId,
+    required String actorId,
+    required String actorName,
+  });
+
+  Future<void> reportSettlementPayment({
+    required String clubId,
+    required String settlementId,
+    required String userId,
+    required String depositName,
+  });
+
+  Future<void> confirmSettlementShare({
+    required String clubId,
+    required String settlementId,
+    required String userId,
+    required String actorId,
+  });
+
+  Future<void> remindUnsettled({
+    required String clubId,
+    required String settlementId,
+    required String actorId,
   });
 }

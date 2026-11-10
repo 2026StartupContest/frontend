@@ -7,11 +7,13 @@ import 'package:flutter_proj/core/attendance.dart';
 import 'package:flutter_proj/core/club_access.dart';
 import 'package:flutter_proj/core/kst.dart';
 import 'package:flutter_proj/core/meeting_filter.dart';
+import 'package:flutter_proj/core/settlement.dart';
 import 'package:flutter_proj/data/gateways.dart';
 import 'package:flutter_proj/models/accounting.dart';
 import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
+import 'package:flutter_proj/models/settlement.dart';
 import 'package:flutter_proj/router/app_routes.dart';
 
 const inviteAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1409,6 +1411,395 @@ class FirebaseClubService implements ClubGateway {
   }
 
   @override
+  Future<SettlementListData> loadSettlementList({
+    required String uid,
+    required String clubId,
+  }) async {
+    final actor = await _actor(uid, clubId);
+    final staff = ClubAccess.showsSettings(actor.role);
+    Query<Map<String, dynamic>> query = _clubs.doc(clubId).collection('settlements');
+    if (!staff) {
+      query = query.where('status', whereIn: [SettlementStatus.collecting, SettlementStatus.done]);
+    }
+    final snap = await query.get();
+    final items = await Future.wait(
+      snap.docs.map((doc) => _readSettlement(doc.reference, doc.data(), uid: uid, allShares: false)),
+    );
+    final sorted = items.toList()..sort(_compareSettlements);
+    return SettlementListData(
+      club: actor.club,
+      role: actor.role,
+      userId: uid,
+      userName: actor.userName,
+      notices: await _loadNotices(clubId),
+      items: sorted,
+    );
+  }
+
+  @override
+  Future<SettlementDetailData> loadSettlement({
+    required String uid,
+    required String clubId,
+    required String settlementId,
+    bool allShares = false,
+  }) async {
+    final actor = await _actor(uid, clubId);
+    final staff = ClubAccess.showsSettings(actor.role);
+    if (allShares && !staff) {
+      throw StateError('운영진만 구성원별 현황을 볼 수 있어요.');
+    }
+    final ref = _settlementRef(clubId, settlementId);
+    final snap = await ref.get();
+    final data = snap.data();
+    if (!snap.exists || data == null) throw StateError('정산을 찾지 못했어요.');
+    if (data['status'] == SettlementStatus.draft && !staff) {
+      throw StateError('정산을 찾지 못했어요.');
+    }
+    final settlement = await _readSettlement(ref, data, uid: uid, allShares: allShares);
+    return SettlementDetailData(
+      club: actor.club,
+      role: actor.role,
+      userId: uid,
+      userName: actor.userName,
+      settlement: settlement,
+      members: staff ? await _activeMembers(clubId) : const [],
+    );
+  }
+
+  @override
+  Future<SettlementDraftData> loadSettlementDraft({
+    required String uid,
+    required String clubId,
+    String? settlementId,
+  }) async {
+    final actor = await _actor(uid, clubId);
+    if (!ClubAccess.showsSettings(actor.role)) {
+      throw StateError('운영진만 정산을 만들 수 있어요.');
+    }
+    Settlement? settlement;
+    if (settlementId != null && settlementId.isNotEmpty) {
+      final detail = await loadSettlement(
+        uid: uid,
+        clubId: clubId,
+        settlementId: settlementId,
+      );
+      if (!detail.settlement.isDraft) {
+        throw StateError('확정된 정산은 수정할 수 없어요.');
+      }
+      settlement = detail.settlement;
+    }
+    return SettlementDraftData(
+      club: actor.club,
+      role: actor.role,
+      userId: uid,
+      userName: actor.userName,
+      meetings: await loadMeetings(clubId: clubId),
+      members: await _activeMembers(clubId),
+      settlement: settlement,
+    );
+  }
+
+  @override
+  Future<String> saveSettlementDraft({
+    required String clubId,
+    required String actorId,
+    String? settlementId,
+    required String title,
+    required String meetingId,
+    required String meetingTitle,
+    DateTime? meetingAt,
+    required int supportAmount,
+    required String receiverUserId,
+    required String receiverName,
+    required String bankName,
+    required String bankAccount,
+    required DateTime dueAt,
+  }) async {
+    final name = title.trim();
+    if (name.isEmpty) throw StateError('정산 이름을 입력해 주세요.');
+    if (name.length > 40) throw StateError('정산 이름은 40자까지 입력할 수 있어요.');
+    if (meetingId.trim().isEmpty) throw StateError('연결할 모임을 골라 주세요.');
+    if (supportAmount < 0) throw StateError('지원 금액을 확인해 주세요.');
+    if (receiverName.trim().isEmpty || bankAccount.trim().isEmpty) {
+      throw StateError('입금 계좌를 입력해 주세요.');
+    }
+    final ref = settlementId == null || settlementId.isEmpty
+        ? _clubs.doc(clubId).collection('settlements').doc()
+        : _settlementRef(clubId, settlementId);
+    if (settlementId != null && settlementId.isNotEmpty) {
+      final existing = await ref.get();
+      final status = existing.data()?['status'] as String?;
+      if (!existing.exists) throw StateError('정산을 찾지 못했어요.');
+      if (status != SettlementStatus.draft) throw StateError('확정된 정산은 수정할 수 없어요.');
+      await _clearSettlementMath(ref);
+    }
+    final payload = <String, dynamic>{
+      'title': name,
+      'meetingId': meetingId.trim(),
+      'meetingTitle': meetingTitle.trim(),
+      'status': SettlementStatus.draft,
+      'supportAmount': supportAmount,
+      'receiverUserId': receiverUserId.trim(),
+      'receiverName': receiverName.trim(),
+      'bankName': bankName.trim(),
+      'bankAccount': bankAccount.trim(),
+      'dueAt': Timestamp.fromDate(kstWallToInstant(dueAt)),
+      'shareCount': 0,
+      'paidCount': 0,
+      'collectedAmount': 0,
+      'personalTotal': 0,
+      'totalSpend': 0,
+    };
+    final meetingStamp = meetingAt == null ? null : Timestamp.fromDate(kstWallToInstant(meetingAt));
+    if (settlementId == null || settlementId.isEmpty) {
+      if (meetingStamp != null) payload['meetingAt'] = meetingStamp;
+      payload['createdBy'] = actorId;
+      payload['createdAt'] = FieldValue.serverTimestamp();
+      await ref.set(payload);
+      return ref.id;
+    }
+    payload['meetingAt'] = meetingStamp ?? FieldValue.delete();
+    await ref.update(payload);
+    return ref.id;
+  }
+
+  @override
+  Future<void> saveSettlementRounds({
+    required String clubId,
+    required String settlementId,
+    required List<SettlementRound> rounds,
+  }) async {
+    if (rounds.isEmpty) throw StateError('차수를 하나 이상 입력해 주세요.');
+    if (rounds.length > 20) throw StateError('차수는 20개까지 추가할 수 있어요.');
+    final ref = await _draftRef(clubId, settlementId);
+    await _clearSettlementMath(ref);
+    final existing = await ref.collection('rounds').get();
+    final batch = _db.batch();
+    final nextIds = <String>{};
+    for (final round in rounds) {
+      if (round.id.isNotEmpty) nextIds.add(round.id);
+    }
+    for (final doc in existing.docs) {
+      if (!nextIds.contains(doc.id)) batch.delete(doc.reference);
+    }
+    for (var index = 0; index < rounds.length; index++) {
+      final round = rounds[index];
+      final id = round.id.isEmpty ? ref.collection('rounds').doc().id : round.id;
+      batch.set(ref.collection('rounds').doc(id), {
+        'index': index + 1,
+        'label': round.label.trim(),
+        'place': round.place.trim(),
+        'amount': round.amount < 0 ? 0 : round.amount,
+        'attendeeIds': uniqueAttendees(round.attendeeIds),
+        'supportApplied': 0,
+        'net': 0,
+        'shareAmount': 0,
+      });
+    }
+    await batch.commit();
+  }
+
+  @override
+  Future<void> saveRoundAttendees({
+    required String clubId,
+    required String settlementId,
+    required String roundId,
+    required List<String> attendeeIds,
+  }) async {
+    final ref = await _draftRef(clubId, settlementId);
+    final round = ref.collection('rounds').doc(roundId);
+    if (!(await round.get()).exists) throw StateError('차수를 찾지 못했어요.');
+    await round.update({'attendeeIds': uniqueAttendees(attendeeIds)});
+    await _clearSettlementMath(ref);
+  }
+
+  @override
+  Future<void> calculateSettlement({
+    required String clubId,
+    required String settlementId,
+  }) async {
+    final ref = await _draftRef(clubId, settlementId);
+    final snap = await ref.get();
+    final data = snap.data() ?? {};
+    final support = (data['supportAmount'] as num?)?.toInt() ?? 0;
+    final rounds = await _loadRounds(ref);
+    final inputs = [
+      for (final round in rounds)
+        RoundSplitInput(
+          id: round.id,
+          index: round.index,
+          amount: round.amount,
+          attendeeIds: round.attendeeIds,
+        ),
+    ];
+    final issue = settlementReadyIssue(inputs, supportAmount: support);
+    if (issue != null) throw StateError(issue);
+    final split = splitSettlement(rounds: inputs, supportAmount: support);
+    if (split.people.isEmpty) throw StateError('정산할 사람이 없어요.');
+    final names = await _memberNames(clubId);
+    final oldShares = await ref.collection('shares').get();
+    await _deleteRefs(oldShares.docs.map((doc) => doc.reference).toList());
+    final batch = _db.batch();
+    for (final result in split.rounds) {
+      batch.update(ref.collection('rounds').doc(result.id), {
+        'supportApplied': result.supportApplied,
+        'net': result.net,
+        'shareAmount': result.representativeShare,
+      });
+    }
+    for (final person in split.people) {
+      final stored = names[person.userId]?.trim() ?? '';
+      final userName = stored.isEmpty ? '구성원' : stored;
+      batch.set(ref.collection('shares').doc(person.userId), {
+        'userId': person.userId,
+        'userName': userName.length > 30 ? userName.substring(0, 30) : userName,
+        'amount': person.amount,
+        'roundIndexes': person.roundIndexes,
+        'roundAmounts': person.roundAmounts,
+        'status': SettlementShareStatus.unpaid,
+      });
+    }
+    batch.update(ref, {
+      'shareCount': split.people.length,
+      'paidCount': 0,
+      'collectedAmount': 0,
+      'personalTotal': split.personalTotal,
+      'totalSpend': split.totalSpend,
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> confirmSettlement({
+    required String clubId,
+    required String settlementId,
+    required String actorId,
+    required String actorName,
+  }) async {
+    final ref = _settlementRef(clubId, settlementId);
+    final existing = await ref.get();
+    final status = existing.data()?['status'] as String?;
+    if (!existing.exists) throw StateError('정산을 찾지 못했어요.');
+    if (status == SettlementStatus.collecting || status == SettlementStatus.done) {
+      throw StateError('이미 확정된 정산이에요.');
+    }
+    await calculateSettlement(clubId: clubId, settlementId: settlementId);
+    final snap = await ref.get();
+    final data = snap.data() ?? {};
+    final support = (data['supportAmount'] as num?)?.toInt() ?? 0;
+    final shareCount = (data['shareCount'] as num?)?.toInt() ?? 0;
+    if (shareCount <= 0) throw StateError('정산할 사람이 없어요.');
+    final title = (data['title'] as String? ?? '정산').trim();
+    final ledgerRef = support > 0 ? _clubs.doc(clubId).collection('ledger').doc() : null;
+    final actor = actorName.trim().isEmpty ? '운영진' : actorName.trim();
+    final batch = _db.batch();
+    batch.update(ref, {
+      'status': SettlementStatus.collecting,
+      'confirmedAt': FieldValue.serverTimestamp(),
+      if (ledgerRef != null) 'ledgerEntryId': ledgerRef.id,
+    });
+    if (ledgerRef != null) {
+      batch.set(ledgerRef, {
+        'kind': 'expense',
+        'amount': support,
+        'title': '$title 회비 지원',
+        'occurredAt': FieldValue.serverTimestamp(),
+        'category': '모임 지원',
+        'memo': '공용 회비 지원',
+        'actorId': actorId,
+        'actorName': actor.length > 30 ? actor.substring(0, 30) : actor,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+    batch.set(_clubs.doc(clubId).collection('notices').doc(), {
+      'title': '$title 정산',
+      'body': '분담금이 확정됐어요. 내 금액을 확인하고 기한까지 입금해 주세요.',
+      'kind': 'settlement',
+      'unread': true,
+      'actorId': actorId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> reportSettlementPayment({
+    required String clubId,
+    required String settlementId,
+    required String userId,
+    required String depositName,
+  }) async {
+    final name = depositName.trim();
+    if (name.isEmpty) throw StateError('입금자명을 입력해 주세요.');
+    if (name.length > 30) throw StateError('입금자명은 30자까지 입력할 수 있어요.');
+    await _settlementRef(clubId, settlementId).collection('shares').doc(userId).update({
+      'status': SettlementShareStatus.reported,
+      'depositName': name,
+      'reportedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<void> confirmSettlementShare({
+    required String clubId,
+    required String settlementId,
+    required String userId,
+    required String actorId,
+  }) async {
+    final ref = _settlementRef(clubId, settlementId);
+    final shareRef = ref.collection('shares').doc(userId);
+    final shareSnap = await shareRef.get();
+    final settlementSnap = await ref.get();
+    final share = shareSnap.data();
+    final settlement = settlementSnap.data();
+    if (share == null || settlement == null) throw StateError('정산 내역을 찾지 못했어요.');
+    if (share['status'] != SettlementShareStatus.reported) {
+      throw StateError('입금 신고 후 완료 처리할 수 있어요.');
+    }
+    final amount = (share['amount'] as num?)?.toInt() ?? 0;
+    final paidCount = (settlement['paidCount'] as num?)?.toInt() ?? 0;
+    final shareCount = (settlement['shareCount'] as num?)?.toInt() ?? 0;
+    final collected = (settlement['collectedAmount'] as num?)?.toInt() ?? 0;
+    final nextPaid = paidCount + 1;
+    final batch = _db.batch();
+    batch.update(shareRef, {
+      'status': SettlementShareStatus.paid,
+      'confirmedAt': FieldValue.serverTimestamp(),
+      'confirmedBy': actorId,
+    });
+    batch.update(ref, {
+      'paidCount': nextPaid,
+      'collectedAmount': collected + amount,
+      'status': nextPaid >= shareCount ? SettlementStatus.done : SettlementStatus.collecting,
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> remindUnsettled({
+    required String clubId,
+    required String settlementId,
+    required String actorId,
+  }) async {
+    final ref = _settlementRef(clubId, settlementId);
+    final snap = await ref.get();
+    final data = snap.data();
+    if (data == null) throw StateError('정산을 찾지 못했어요.');
+    final shares = await ref.collection('shares').get();
+    final open = shares.docs.where((doc) => doc.data()['status'] != SettlementShareStatus.paid).length;
+    if (open == 0) throw StateError('미정산 구성원이 없어요.');
+    final title = (data['title'] as String? ?? '정산').trim();
+    await _clubs.doc(clubId).collection('notices').add({
+      'title': '$title 입금 안내',
+      'body': '아직 정산 입금이 끝나지 않은 분이 $open명 있어요.',
+      'kind': 'settlement',
+      'unread': true,
+      'actorId': actorId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
   Future<void> markNoticesRead(String clubId) async {
     final snap = await _clubs
         .doc(clubId)
@@ -1726,5 +2117,184 @@ class FirebaseClubService implements ClubGateway {
   List<String> _strings(Object? value) {
     if (value is List) return value.map((item) => item.toString()).toList();
     return const [];
+  }
+
+  List<int> _ints(Object? value) {
+    if (value is! List) return const [];
+    return [for (final item in value) if (item is num) item.toInt()];
+  }
+
+  DocumentReference<Map<String, dynamic>> _settlementRef(String clubId, String settlementId) {
+    return _clubs.doc(clubId).collection('settlements').doc(settlementId);
+  }
+
+  Future<({Club club, String role, String userName})> _actor(String uid, String clubId) async {
+    final user = await getUser(uid);
+    final club = await _readClub(clubId);
+    if (user == null || club == null) throw StateError('동아리 정보를 불러오지 못했어요.');
+    final memberSnap = await _clubs.doc(clubId).collection('members').doc(uid).get();
+    var role = memberSnap.data()?['role'] as String? ?? 'member';
+    if (club.ownerId == uid) role = 'owner';
+    final stored = (memberSnap.data()?['userName'] as String?)?.trim();
+    final userName = stored == null || stored.isEmpty ? user.name : stored;
+    return (club: club, role: role, userName: userName);
+  }
+
+  Future<List<ClubNotice>> _loadNotices(String clubId) async {
+    final notices = await _mapDocs(
+      _clubs.doc(clubId).collection('notices'),
+      (doc) => ClubNotice(
+        id: doc.id,
+        title: doc.data()['title'] as String? ?? '',
+        body: doc.data()['body'] as String? ?? '',
+        createdAt: _kst(doc.data()['createdAt']) ?? kstNow(),
+        unread: doc.data()['unread'] as bool? ?? false,
+        kind: doc.data()['kind'] as String? ?? 'info',
+      ),
+    );
+    notices.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return notices;
+  }
+
+  Future<List<ClubMember>> _activeMembers(String clubId) async {
+    final members = await _mapDocs(_clubs.doc(clubId).collection('members'), (doc) {
+      final data = doc.data();
+      return ClubMember(
+        userId: data['userId'] as String? ?? doc.id,
+        userName: data['userName'] as String? ?? '',
+        role: data['role'] as String? ?? 'member',
+        status: data['status'] as String? ?? 'active',
+      );
+    });
+    final active = members.where((member) => member.status == 'active').toList();
+    active.sort((a, b) => a.userName.compareTo(b.userName));
+    return active;
+  }
+
+  Future<Map<String, String>> _memberNames(String clubId) async {
+    final members = await _activeMembers(clubId);
+    return {for (final member in members) member.userId: member.userName};
+  }
+
+  Future<DocumentReference<Map<String, dynamic>>> _draftRef(String clubId, String settlementId) async {
+    final ref = _settlementRef(clubId, settlementId);
+    final snap = await ref.get();
+    if (!snap.exists) throw StateError('정산을 찾지 못했어요.');
+    if (snap.data()?['status'] != SettlementStatus.draft) {
+      throw StateError('확정된 정산은 수정할 수 없어요.');
+    }
+    return ref;
+  }
+
+  Future<void> _clearSettlementMath(DocumentReference<Map<String, dynamic>> ref) async {
+    final shares = await ref.collection('shares').get();
+    await _deleteRefs(shares.docs.map((doc) => doc.reference).toList());
+    await ref.update({
+      'shareCount': 0,
+      'paidCount': 0,
+      'collectedAmount': 0,
+      'personalTotal': 0,
+      'totalSpend': 0,
+    });
+  }
+
+  Future<List<SettlementRound>> _loadRounds(DocumentReference<Map<String, dynamic>> ref) async {
+    final snap = await ref.collection('rounds').get();
+    final rounds = snap.docs.map(_roundFrom).toList()..sort((a, b) => a.index.compareTo(b.index));
+    return rounds;
+  }
+
+  Future<Settlement> _readSettlement(
+    DocumentReference<Map<String, dynamic>> ref,
+    Map<String, dynamic> data, {
+    required String uid,
+    required bool allShares,
+  }) async {
+    final rounds = await _loadRounds(ref);
+    final shares = <SettlementShare>[];
+    if (allShares) {
+      final snap = await ref.collection('shares').get();
+      shares.addAll(snap.docs.map(_shareFrom));
+    } else {
+      final own = await ref.collection('shares').doc(uid).get();
+      if (own.exists) shares.add(_shareFrom(own));
+    }
+    return _settlementFrom(ref.id, data, rounds, shares);
+  }
+
+  Settlement _settlementFrom(
+    String id,
+    Map<String, dynamic> data,
+    List<SettlementRound> rounds,
+    List<SettlementShare> shares,
+  ) {
+    return Settlement(
+      id: id,
+      title: data['title'] as String? ?? '',
+      meetingId: data['meetingId'] as String? ?? '',
+      meetingTitle: data['meetingTitle'] as String? ?? '',
+      status: data['status'] as String? ?? SettlementStatus.draft,
+      supportAmount: (data['supportAmount'] as num?)?.toInt() ?? 0,
+      receiverUserId: data['receiverUserId'] as String? ?? '',
+      receiverName: data['receiverName'] as String? ?? '',
+      bankName: data['bankName'] as String? ?? '',
+      bankAccount: data['bankAccount'] as String? ?? '',
+      dueAt: _kst(data['dueAt']),
+      meetingAt: _kst(data['meetingAt']),
+      createdAt: _kst(data['createdAt']),
+      confirmedAt: _kst(data['confirmedAt']),
+      createdBy: data['createdBy'] as String? ?? '',
+      ledgerEntryId: data['ledgerEntryId'] as String?,
+      shareCount: (data['shareCount'] as num?)?.toInt() ?? 0,
+      paidCount: (data['paidCount'] as num?)?.toInt() ?? 0,
+      collectedAmount: (data['collectedAmount'] as num?)?.toInt() ?? 0,
+      personalTotal: (data['personalTotal'] as num?)?.toInt() ?? 0,
+      totalSpend: (data['totalSpend'] as num?)?.toInt() ?? 0,
+      rounds: rounds,
+      shares: shares,
+    );
+  }
+
+  SettlementRound _roundFrom(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
+    return SettlementRound(
+      id: doc.id,
+      index: (data['index'] as num?)?.toInt() ?? 1,
+      label: data['label'] as String? ?? '',
+      place: data['place'] as String? ?? '',
+      amount: (data['amount'] as num?)?.toInt() ?? 0,
+      attendeeIds: _strings(data['attendeeIds']),
+      supportApplied: (data['supportApplied'] as num?)?.toInt() ?? 0,
+      net: (data['net'] as num?)?.toInt() ?? 0,
+      shareAmount: (data['shareAmount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  SettlementShare _shareFrom(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
+    return SettlementShare(
+      userId: data['userId'] as String? ?? doc.id,
+      userName: data['userName'] as String? ?? '',
+      amount: (data['amount'] as num?)?.toInt() ?? 0,
+      roundIndexes: _ints(data['roundIndexes']),
+      roundAmounts: _ints(data['roundAmounts']),
+      status: data['status'] as String? ?? SettlementShareStatus.unpaid,
+      depositName: data['depositName'] as String?,
+      reportedAt: _kst(data['reportedAt']),
+      confirmedAt: _kst(data['confirmedAt']),
+    );
+  }
+
+  int _compareSettlements(Settlement a, Settlement b) {
+    if (a.isDone != b.isDone) return a.isDone ? 1 : -1;
+    if (a.isDone) {
+      final aTime = a.meetingAt ?? a.createdAt ?? DateTime(0);
+      final bTime = b.meetingAt ?? b.createdAt ?? DateTime(0);
+      return bTime.compareTo(aTime);
+    }
+    if (a.isDraft != b.isDraft) return a.isDraft ? -1 : 1;
+    final aDue = a.dueAt ?? DateTime(9999);
+    final bDue = b.dueAt ?? DateTime(9999);
+    return aDue.compareTo(bDue);
   }
 }
