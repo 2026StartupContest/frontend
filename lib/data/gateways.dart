@@ -1,4 +1,5 @@
 import 'package:flutter_proj/models/app_user.dart';
+import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
 
 class LaunchTarget {
@@ -174,4 +175,55 @@ abstract class ClubGateway {
   });
 
   Future<void> deleteMeeting({required String clubId, required String eventId});
+
+  Future<List<ClubEvent>> loadMeetings({required String clubId});
+
+  Stream<ClubEvent> watchEvent({
+    required String clubId,
+    required String eventId,
+  });
+
+  /// 최근에 출석한 순서로 줍니다.
+  Stream<List<AttendanceRecord>> watchAttendance({
+    required String clubId,
+    required String eventId,
+  });
+
+  Future<Map<String, List<AttendanceRecord>>> loadAttendanceRecords({
+    required String clubId,
+    required List<String> eventIds,
+  });
+
+  /// 운영진만 볼 수 있습니다. 아직 QR을 띄운 적이 없으면 null입니다.
+  Stream<QrSession?> watchAttendanceQr({
+    required String clubId,
+    required String eventId,
+  });
+
+  /// 새 QR 토큰을 만들고 출석을 엽니다.
+  Future<QrSession> rotateAttendanceQr({
+    required String clubId,
+    required String eventId,
+  });
+
+  Future<void> closeAttendance({
+    required String clubId,
+    required String eventId,
+  });
+
+  /// [raw]는 스캔한 QR 내용 그대로입니다.
+  Future<CheckInResult> checkInWithQr({
+    required String uid,
+    required String raw,
+  });
+
+  Future<void> markAttendanceManually({
+    required String clubId,
+    required String eventId,
+    required String userId,
+    required String userName,
+    required String actorId,
+    required String actorName,
+    String? reason,
+  });
 }

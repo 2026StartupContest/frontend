@@ -9,6 +9,12 @@ rules_version = '2';
 // clubs/{clubId}/members/{uid}: userId, userName, role, status, feeReported, requestedAt, depositName
 // clubs/{clubId}/notices/{id}: title, body, kind, unread, actorId, createdAt
 // clubs/{clubId}/events: read by members, written by the owner or an admin
+// clubs/{clubId}/events/{eventId}/qr/current: token, expiresAt. Staff only
+// clubs/{clubId}/events/{eventId}/attendance/{uid}: userId, userName, method, checkedAt,
+//   optional reason, actorId, actorName. Read by members, never edited after creation
+// clubs/{clubId}/events/{eventId}/proofs/{uid}: token. Written by the member who scanned
+//   the QR and compared with qr/current by the attendance rule. Members cannot read it,
+//   so a token cannot be copied from another member's check-in
 // inviteCodes/{code}: clubId, ownerId, expiresAt
 
 service cloud.firestore {
@@ -159,6 +165,30 @@ service cloud.firestore {
         && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() < 700000));
     }
 
+    function isValidQr(data) {
+      return data.keys().hasAll(['token', 'expiresAt'])
+        && data.keys().hasOnly(['token', 'expiresAt'])
+        && data.token is string
+        && data.token.size() >= 16
+        && data.token.size() <= 64
+        && data.expiresAt is timestamp
+        && data.expiresAt > request.time
+        && data.expiresAt <= request.time + duration.value(10, 'm');
+    }
+
+    function isValidAttendance(data, uid) {
+      return data.keys().hasAll(['userId', 'userName', 'method', 'checkedAt'])
+        && data.keys().hasOnly(['userId', 'userName', 'method', 'checkedAt', 'reason', 'actorId', 'actorName'])
+        && data.userId == uid
+        && data.userName is string
+        && data.userName.size() <= 30
+        && data.method in ['qr', 'manual']
+        && data.checkedAt == request.time
+        && (!('reason' in data) || (data.reason is string && data.reason.size() <= 100))
+        && (!('actorId' in data) || data.actorId == request.auth.uid)
+        && (!('actorName' in data) || (data.actorName is string && data.actorName.size() <= 30));
+    }
+
     function isValidInvite(data) {
       return data.keys().hasOnly(['clubId', 'ownerId', 'expiresAt'])
         && data.clubId is string
@@ -243,8 +273,61 @@ service cloud.firestore {
 
       match /events/{eventId} {
         allow read: if isOwner(clubId) || isActiveMember(clubId);
-        allow create, update: if isStaff(clubId) && isValidEvent(request.resource.data);
+        allow create: if isStaff(clubId) && isValidEvent(request.resource.data);
+        // A member may only raise checkedInCount by one, and only in the same
+        // batch that creates their own attendance record.
+        allow update: if (isStaff(clubId) && isValidEvent(request.resource.data))
+          || (
+            isActiveMember(clubId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount'])
+            && request.resource.data.checkedInCount == resource.data.checkedInCount + 1
+            && !exists(/databases/$(database)/documents/clubs/$(clubId)/events/$(eventId)/attendance/$(request.auth.uid))
+            && existsAfter(/databases/$(database)/documents/clubs/$(clubId)/events/$(eventId)/attendance/$(request.auth.uid))
+          );
         allow delete: if isStaff(clubId);
+
+        match /qr/{qrId} {
+          allow read, delete: if isStaff(clubId);
+          allow create, update: if isStaff(clubId)
+            && qrId == 'current'
+            && isValidQr(request.resource.data);
+        }
+
+        match /attendance/{uid} {
+          allow read: if isOwner(clubId) || isActiveMember(clubId);
+          allow create: if isValidAttendance(request.resource.data, uid)
+            && uid in get(/databases/$(database)/documents/clubs/$(clubId)/events/$(eventId)).data.attendeeIds
+            && (
+              (
+                isSelf(uid)
+                && isActiveMember(clubId)
+                && request.resource.data.method == 'qr'
+                && !('actorId' in request.resource.data)
+                && get(/databases/$(database)/documents/clubs/$(clubId)/events/$(eventId)).data.attendanceOpen == true
+                && getAfter(/databases/$(database)/documents/clubs/$(clubId)/events/$(eventId)/proofs/$(uid)).data.token
+                  == get(/databases/$(database)/documents/clubs/$(clubId)/events/$(eventId)/qr/current).data.token
+                && request.time < get(/databases/$(database)/documents/clubs/$(clubId)/events/$(eventId)/qr/current).data.expiresAt
+              )
+              || (
+                isStaff(clubId)
+                && request.resource.data.method == 'manual'
+                && request.resource.data.actorId == request.auth.uid
+              )
+            );
+          // Records are never edited, so writing over an existing one fails the
+          // whole batch and checkedInCount cannot be raised twice for one member.
+          allow update: if false;
+          allow delete: if isStaff(clubId);
+        }
+
+        match /proofs/{uid} {
+          allow read, delete: if isStaff(clubId);
+          allow create, update: if isSelf(uid)
+            && isActiveMember(clubId)
+            && request.resource.data.keys().hasOnly(['token'])
+            && request.resource.data.token is string
+            && request.resource.data.token.size() <= 64;
+        }
       }
 
       match /activities/{activityId} {

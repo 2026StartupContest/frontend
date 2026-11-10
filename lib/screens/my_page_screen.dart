@@ -285,6 +285,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
         selected: MoaTab.myPage,
         onSelected: (tab) {
           if (tab == MoaTab.home) _goHome();
+          if (tab == MoaTab.attendance) {
+            Navigator.pushReplacementNamed(
+              context,
+              AppRoutes.attendance,
+              arguments: ClubArgs(widget.clubId),
+            );
+          }
           if (tab == MoaTab.reservation) {
             Navigator.pushNamed(
               context,

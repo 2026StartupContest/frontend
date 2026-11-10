@@ -3,10 +3,12 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_proj/core/attendance.dart';
 import 'package:flutter_proj/core/kst.dart';
 import 'package:flutter_proj/core/meeting_filter.dart';
 import 'package:flutter_proj/data/gateways.dart';
 import 'package:flutter_proj/models/app_user.dart';
+import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
 import 'package:flutter_proj/router/app_routes.dart';
 
@@ -789,6 +791,11 @@ class FirebaseClubService implements ClubGateway {
     ];
     for (final name in ['events', 'activities', 'notices']) {
       final snap = await _clubs.doc(clubId).collection(name).get();
+      if (name == 'events') {
+        for (final doc in snap.docs) {
+          refs.addAll(await _attendanceRefs(doc.reference));
+        }
+      }
       refs.addAll(snap.docs.map((doc) => doc.reference));
     }
     await _deleteRefs(refs);
@@ -841,7 +848,9 @@ class FirebaseClubService implements ClubGateway {
       'place': event.place.trim(),
       'supplies': event.supplies.trim(),
       'status': event.status.isEmpty ? '예정' : event.status,
-      'attendanceOpen': open,
+      // 이미 있는 모임의 출석 상태와 출석 수는 출석 흐름에서만 바꿉니다.
+      // 수정 화면이 열려 있는 동안 들어온 출석을 덮어쓰지 않으려는 것입니다.
+      if (event.id.isEmpty) ...{'attendanceOpen': open, 'checkedInCount': 0},
       'attendeeIds': event.attendeeIds,
       'attendeeInitials': names
           .map(
@@ -851,7 +860,6 @@ class FirebaseClubService implements ClubGateway {
           .take(6)
           .toList(),
       'attendeeSummary': _attendeeSummary(names),
-      'checkedInCount': event.checkedInCount,
       'feePaidCount': event.feePaidCount,
       if (image == null && event.imageUrl != null && event.imageUrl!.isNotEmpty)
         'imageUrl': event.imageUrl,
@@ -928,7 +936,203 @@ class FirebaseClubService implements ClubGateway {
     required String clubId,
     required String eventId,
   }) async {
-    await _clubs.doc(clubId).collection('events').doc(eventId).delete();
+    final ref = _eventRef(clubId, eventId);
+    await _deleteRefs(await _attendanceRefs(ref));
+    await ref.delete();
+  }
+
+  @override
+  Future<List<ClubEvent>> loadMeetings({required String clubId}) async {
+    return uniqueMeetings(
+      await _mapDocs(_clubs.doc(clubId).collection('events'), _eventFrom),
+    );
+  }
+
+  @override
+  Stream<ClubEvent> watchEvent({
+    required String clubId,
+    required String eventId,
+  }) {
+    return _eventRef(
+      clubId,
+      eventId,
+    ).snapshots().where((snap) => snap.exists).map(_eventFrom);
+  }
+
+  @override
+  Stream<List<AttendanceRecord>> watchAttendance({
+    required String clubId,
+    required String eventId,
+  }) {
+    return _eventRef(clubId, eventId)
+        .collection('attendance')
+        .snapshots()
+        .map((snap) => _sortedRecords(snap.docs.map(_recordFrom)));
+  }
+
+  @override
+  Future<Map<String, List<AttendanceRecord>>> loadAttendanceRecords({
+    required String clubId,
+    required List<String> eventIds,
+  }) async {
+    final entries = await Future.wait(
+      eventIds.map((id) async {
+        final snap = await _eventRef(clubId, id).collection('attendance').get();
+        return MapEntry(id, _sortedRecords(snap.docs.map(_recordFrom)));
+      }),
+    );
+    return Map.fromEntries(entries);
+  }
+
+  @override
+  Stream<QrSession?> watchAttendanceQr({
+    required String clubId,
+    required String eventId,
+  }) {
+    return _qrRef(clubId, eventId).snapshots().map((snap) {
+      final data = snap.data();
+      final token = data?['token'] as String?;
+      final expiresAt = _date(data?['expiresAt']);
+      if (token == null || token.isEmpty || expiresAt == null) return null;
+      return QrSession(token: token, expiresAt: expiresAt);
+    });
+  }
+
+  @override
+  Future<QrSession> rotateAttendanceQr({
+    required String clubId,
+    required String eventId,
+  }) async {
+    final session = QrSession(
+      token: generateAttendanceToken(),
+      expiresAt: DateTime.now().add(attendanceQrLifetime),
+    );
+    final batch = _db.batch();
+    batch.set(_qrRef(clubId, eventId), {
+      'token': session.token,
+      'expiresAt': Timestamp.fromDate(session.expiresAt),
+    });
+    batch.update(_eventRef(clubId, eventId), {'attendanceOpen': true});
+    await batch.commit();
+    return session;
+  }
+
+  @override
+  Future<void> closeAttendance({
+    required String clubId,
+    required String eventId,
+  }) async {
+    final batch = _db.batch();
+    batch.delete(_qrRef(clubId, eventId));
+    batch.update(_eventRef(clubId, eventId), {'attendanceOpen': false});
+    await batch.commit();
+  }
+
+  @override
+  Future<CheckInResult> checkInWithQr({
+    required String uid,
+    required String raw,
+  }) async {
+    final payload = parseAttendanceQr(raw);
+    if (payload == null) throw StateError('모아 출석 QR이 아니에요.');
+    final clubId = payload.clubId;
+    final eventRef = _eventRef(clubId, payload.eventId);
+    final recordRef = eventRef.collection('attendance').doc(uid);
+
+    final ClubEvent event;
+    final String userName;
+    try {
+      final member = await _clubs
+          .doc(clubId)
+          .collection('members')
+          .doc(uid)
+          .get();
+      if (!member.exists || member.data()?['status'] != 'active') {
+        throw StateError('이 동아리의 구성원만 출석할 수 있어요.');
+      }
+      userName = (member.data()?['userName'] as String? ?? '').trim();
+      final eventSnap = await eventRef.get();
+      if (!eventSnap.exists) throw StateError('모임을 찾을 수 없어요.');
+      event = _eventFrom(eventSnap);
+      final existing = await recordRef.get();
+      if (existing.exists) {
+        return CheckInResult(
+          clubId: clubId,
+          event: event,
+          record: _recordFrom(existing),
+          duplicate: true,
+        );
+      }
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') {
+        throw StateError('이 동아리의 구성원만 출석할 수 있어요.');
+      }
+      rethrow;
+    }
+    if (!event.attendeeIds.contains(uid)) {
+      throw StateError('이 모임의 참석 대상이 아니에요. 운영진에게 확인해 주세요.');
+    }
+    if (!event.attendanceOpen) throw StateError('출석이 마감된 모임이에요.');
+
+    final batch = _db.batch();
+    // 토큰은 본인만 쓰고 아무도 읽지 못하는 문서에 두고, 규칙이 현재 QR과 대조합니다.
+    batch.set(eventRef.collection('proofs').doc(uid), {'token': payload.token});
+    batch.set(recordRef, {
+      'userId': uid,
+      'userName': userName,
+      'method': 'qr',
+      'checkedAt': FieldValue.serverTimestamp(),
+    });
+    batch.update(eventRef, {'checkedInCount': FieldValue.increment(1)});
+    try {
+      await batch.commit();
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') {
+        throw StateError('QR이 만료되었거나 올바르지 않아요. 운영진 화면의 새 QR을 찍어 주세요.');
+      }
+      rethrow;
+    }
+    return CheckInResult(
+      clubId: clubId,
+      event: event,
+      record: AttendanceRecord(
+        userId: uid,
+        userName: userName,
+        method: AttendanceMethod.qr,
+        checkedAt: kstNow(),
+      ),
+      duplicate: false,
+    );
+  }
+
+  @override
+  Future<void> markAttendanceManually({
+    required String clubId,
+    required String eventId,
+    required String userId,
+    required String userName,
+    required String actorId,
+    required String actorName,
+    String? reason,
+  }) async {
+    final eventRef = _eventRef(clubId, eventId);
+    final recordRef = eventRef.collection('attendance').doc(userId);
+    if ((await recordRef.get()).exists) {
+      throw StateError('이미 출석한 구성원이에요.');
+    }
+    final note = reason?.trim() ?? '';
+    final batch = _db.batch();
+    batch.set(recordRef, {
+      'userId': userId,
+      'userName': userName.trim(),
+      'method': 'manual',
+      'checkedAt': FieldValue.serverTimestamp(),
+      'actorId': actorId,
+      'actorName': actorName.trim(),
+      if (note.isNotEmpty) 'reason': note,
+    });
+    batch.update(eventRef, {'checkedInCount': FieldValue.increment(1)});
+    await batch.commit();
   }
 
   @override
@@ -1125,6 +1329,55 @@ class FirebaseClubService implements ClubGateway {
       feeDueAt: _kst(data['feeDueAt']),
       feePaidCount: (data['feePaidCount'] as num?)?.toInt() ?? 0,
     );
+  }
+
+  DocumentReference<Map<String, dynamic>> _eventRef(
+    String clubId,
+    String eventId,
+  ) => _clubs.doc(clubId).collection('events').doc(eventId);
+
+  DocumentReference<Map<String, dynamic>> _qrRef(
+    String clubId,
+    String eventId,
+  ) => _eventRef(clubId, eventId).collection('qr').doc('current');
+
+  AttendanceRecord _recordFrom(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
+    return AttendanceRecord(
+      userId: data['userId'] as String? ?? doc.id,
+      userName: data['userName'] as String? ?? '',
+      method: data['method'] == 'manual'
+          ? AttendanceMethod.manual
+          : AttendanceMethod.qr,
+      // 방금 쓴 기록은 서버 시각이 정해지기 전이라 지금 시각으로 보여 줍니다.
+      checkedAt: _kst(data['checkedAt']) ?? kstNow(),
+      reason: data['reason'] as String?,
+      actorId: data['actorId'] as String?,
+      actorName: data['actorName'] as String?,
+    );
+  }
+
+  List<AttendanceRecord> _sortedRecords(Iterable<AttendanceRecord> records) {
+    return records.toList()
+      ..sort((a, b) => b.checkedAt.compareTo(a.checkedAt));
+  }
+
+  /// 모임을 지울 때 함께 지울 출석 문서입니다.
+  /// 출석 규칙이 아직 배포되지 않았거나 운영진이 아니면 읽을 수 없는데,
+  /// 그렇다고 모임 삭제까지 막지는 않습니다.
+  Future<List<DocumentReference<Map<String, dynamic>>>> _attendanceRefs(
+    DocumentReference<Map<String, dynamic>> eventRef,
+  ) async {
+    final refs = <DocumentReference<Map<String, dynamic>>>[];
+    for (final name in ['attendance', 'proofs', 'qr']) {
+      try {
+        final snap = await eventRef.collection(name).get();
+        refs.addAll(snap.docs.map((doc) => doc.reference));
+      } on FirebaseException catch (error) {
+        if (error.code != 'permission-denied') rethrow;
+      }
+    }
+    return refs;
   }
 
   Future<List<String>> _attendeeNames(String clubId, List<String> ids) async {

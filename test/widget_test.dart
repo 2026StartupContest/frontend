@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/theme/app_theme.dart';
 import 'package:flutter_proj/data/gateways.dart';
 import 'package:flutter_proj/models/app_user.dart';
+import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
 import 'package:flutter_proj/router/open_launch.dart';
 import 'package:flutter_proj/screens/login_screen.dart';
@@ -297,5 +298,66 @@ class _FakeClubs implements ClubGateway {
     required String clubId,
     required String eventId,
     required String status,
+  }) async {}
+
+  @override
+  Future<List<ClubEvent>> loadMeetings({required String clubId}) async =>
+      const [];
+
+  @override
+  Stream<ClubEvent> watchEvent({
+    required String clubId,
+    required String eventId,
+  }) => const Stream.empty();
+
+  @override
+  Stream<List<AttendanceRecord>> watchAttendance({
+    required String clubId,
+    required String eventId,
+  }) => const Stream.empty();
+
+  @override
+  Future<Map<String, List<AttendanceRecord>>> loadAttendanceRecords({
+    required String clubId,
+    required List<String> eventIds,
+  }) async => const {};
+
+  @override
+  Stream<QrSession?> watchAttendanceQr({
+    required String clubId,
+    required String eventId,
+  }) => const Stream.empty();
+
+  @override
+  Future<QrSession> rotateAttendanceQr({
+    required String clubId,
+    required String eventId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> closeAttendance({
+    required String clubId,
+    required String eventId,
+  }) async {}
+
+  @override
+  Future<CheckInResult> checkInWithQr({
+    required String uid,
+    required String raw,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> markAttendanceManually({
+    required String clubId,
+    required String eventId,
+    required String userId,
+    required String userName,
+    required String actorId,
+    required String actorName,
+    String? reason,
   }) async {}
 }

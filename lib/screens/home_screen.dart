@@ -255,6 +255,13 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: MoaBottomNav(
         selected: MoaTab.home,
         onSelected: (tab) {
+          if (tab == MoaTab.attendance) {
+            Navigator.pushNamed(
+              context,
+              AppRoutes.attendance,
+              arguments: ClubArgs(_clubId),
+            ).then((_) => _load());
+          }
           if (tab == MoaTab.myPage) {
             Navigator.pushNamed(
               context,
