@@ -67,7 +67,7 @@ printf 'API_BASE_URL=\n' > .env
 
 Google 로그인은 `GoogleSignIn.instance.initialize()` 후 `authenticate()`로 ID 토큰을 받아 `GoogleAuthProvider.credential`로 Firebase Auth에 넘깁니다. 사용자가 시트를 닫으면 `authErrorMessage`가 빈 문자열을 반환하고, 화면은 그 경우 스낵바를 띄우지 않습니다.
 
-카메라 권한 문구는 초대 QR 스캔용이고, 사진 보관함 문구는 동아리 대표 이미지용입니다.
+카메라 권한 문구는 초대 QR과 출석 QR 스캔용이고, 사진 보관함 문구는 동아리 대표 이미지용입니다.
 
 서비스 계정 키(`*-firebase-adminsdk-*.json`)와 `.firebase/`는 커밋하지 않습니다.
 
@@ -220,7 +220,46 @@ Authentication에서 이메일/비밀번호와 Google 로그인이 켜져 있어
 
 선택 필드: `startsAt`, `endsAt`, `feeAmount`, `feeDueAt`, `imageUrl`(700,000자 미만).
 
-`saveMeeting`은 문서 id가 비어 있으면 새 문서를 만들고, 이미지가 있으면 `clubs/{clubId}/events/{eventId}`에 올린 뒤 `imageUrl`만 다시 갱신합니다. `status == 진행 중`이면 `attendanceOpen`을 true로 저장합니다.
+`saveMeeting`은 문서 id가 비어 있으면 새 문서를 만들고, 이미지가 있으면 `clubs/{clubId}/events/{eventId}`에 올린 뒤 `imageUrl`만 다시 갱신합니다. `attendanceOpen`과 `checkedInCount`는 새 문서를 만들 때만 넣습니다(`status == 진행 중`이면 `attendanceOpen`이 true, 출석 수는 0). 이미 있는 모임에서는 건드리지 않아서, 수정 화면이 열려 있는 동안 들어온 출석이 덮어써지지 않습니다.
+
+`attendanceOpen`을 바꾸는 곳은 세 군데입니다. `setMeetingStatus`는 `진행 중`일 때만 true로 둡니다. `rotateAttendanceQr`는 true로, `closeAttendance`는 false로 바꾸고 `status`는 건드리지 않습니다.
+
+일반 멤버가 모임 문서를 고칠 수 있는 경우는 하나뿐입니다. 자기 출석 기록을 만드는 배치 안에서 `checkedInCount`만 1 올리는 것입니다. 규칙은 그 배치 전에 출석 기록이 없고 배치 후에 있는지를 `exists` / `existsAfter`로 확인합니다.
+
+모임을 지우면(`deleteMeeting`, `deleteClub`) 아래 세 하위 컬렉션 문서도 같이 지웁니다. 읽을 권한이 없으면 건너뛰고 모임만 지웁니다.
+
+### `clubs/{clubId}/events/{eventId}/qr/current`
+
+지금 유효한 출석 QR입니다. 스태프만 읽고 씁니다. 문서 id는 `current`만 허용합니다.
+
+| 필드 | 값 |
+| --- | --- |
+| `token` | 16–64자. 앱은 `generateAttendanceToken`으로 24자를 만듦 |
+| `expiresAt` | timestamp. 쓰는 시각보다 뒤이고 10분 이내. 앱은 5분 뒤(`attendanceQrLifetime`)로 넣음 |
+
+QR에 담는 문자열은 `moa-attendance:{clubId}:{eventId}:{token}`입니다. `buildAttendanceQr`가 만들고 `parseAttendanceQr`가 읽습니다. QR 화면은 이 문서를 구독하다가 없거나 만료되면 `rotateAttendanceQr`로 새로 씁니다.
+
+### `clubs/{clubId}/events/{eventId}/attendance/{uid}`
+
+출석 기록입니다. 문서가 있으면 출석한 것입니다. 오너와 활동 멤버가 읽습니다. 수정은 전부 거부하고 삭제는 스태프만 합니다. 이미 있는 기록 위에 다시 쓰면 배치 전체가 실패하므로 한 사람이 `checkedInCount`를 두 번 올릴 수 없습니다.
+
+| 필드 | 값 |
+| --- | --- |
+| `userId` | 문서 id와 같음 |
+| `userName` | 30자 이하 |
+| `method` | `qr` 또는 `manual` |
+| `checkedAt` | 서버 시각(`request.time`) |
+| `reason` | 선택. 100자 이하. 수동 출석 사유 |
+| `actorId`, `actorName` | 선택. 수동 출석을 처리한 스태프. `actorId`는 현재 uid |
+
+만들 수 있는 경우는 둘이고, 어느 쪽이든 대상이 모임의 `attendeeIds`에 있어야 합니다.
+
+- QR 출석(`checkInWithQr`): 본인이고 활동 멤버, `method == qr`, 모임의 `attendanceOpen`이 true, 같은 배치에서 쓴 `proofs/{uid}.token`이 `qr/current.token`과 같고 아직 만료 전
+- 수동 출석(`markAttendanceManually`): 스태프, `method == manual`, `actorId`가 현재 uid
+
+### `clubs/{clubId}/events/{eventId}/proofs/{uid}`
+
+스캔한 토큰 `token` 하나만 담습니다. 본인(활동 멤버)만 쓰고, 읽기와 삭제는 스태프만 합니다. 토큰을 출석 기록에 넣으면 다른 멤버가 읽어서 현장에 없이 출석할 수 있으므로 따로 둡니다. 출석 규칙이 `getAfter`로 이 문서를 읽어 대조합니다.
 
 ### `clubs/{clubId}/activities/{id}`
 
@@ -280,7 +319,7 @@ Authentication에서 이메일/비밀번호와 Google 로그인이 켜져 있어
 
 ## 보안 규칙을 바꿀 때
 
-규칙 파일과 클라이언트 쓰기가 어긋나면 앱은 `permission-denied`가 납니다. 필드를 추가하면 `isValidUser`, `isValidClub`, `isValidMember`, `isValidNotice`, `isValidEvent`, `isValidInvite`의 `hasOnly` 목록에 먼저 넣습니다. 타입과 길이 검사도 같은 함수에 둡니다.
+규칙 파일과 클라이언트 쓰기가 어긋나면 앱은 `permission-denied`가 납니다. 필드를 추가하면 `isValidUser`, `isValidClub`, `isValidMember`, `isValidNotice`, `isValidEvent`, `isValidQr`, `isValidAttendance`, `isValidInvite`의 `hasOnly` 목록에 먼저 넣습니다. 타입과 길이 검사도 같은 함수에 둡니다.
 
 아래 쓰기는 현재 규칙과 다릅니다. 기능을 고칠 때 규칙과 서비스를 같이 맞춥니다.
 
@@ -292,7 +331,7 @@ Authentication에서 이메일/비밀번호와 Google 로그인이 켜져 있어
 - `deleteClub`이 클럽 문서를 삭제. 클럽 `delete`는 거부
 - 공지 `kind`에 화면 일부는 `settlement`를 기대하지만, 규칙의 `kind`는 `join`, `dues`, `event`, `info`
 
-배포 후 콘솔 규칙 플레이그라운드에서 오너 생성, 즉시 가입, 승인 가입, 다른 사용자 클럽 목록 조회가 거부되는지를 확인합니다.
+배포 후 콘솔 규칙 플레이그라운드에서 오너 생성, 즉시 가입, 승인 가입, 다른 사용자 클럽 목록 조회가 거부되는지를 확인합니다. 출석은 맞는 토큰으로 한 번 출석되는지, 틀린 토큰·만료된 QR·참석 대상이 아닌 멤버·두 번째 출석이 거부되는지를 확인합니다.
 
 ## 공용 컴포넌트
 
@@ -324,6 +363,13 @@ Authentication에서 이메일/비밀번호와 Google 로그인이 켜져 있어
 | `taskBlue`, `taskCream`, `taskGreen` | 할 일·알림 종류별 아이콘 배경 |
 | `dim` | 바텀시트 배리어 |
 | `roleGray`, `roleGrayBg` | 일반 역할 칩 |
+| `track` | 출석 진행 막대 바탕 |
+| `rowLabel` | 정보 카드의 항목 이름 |
+| `presentBg`, `presentText` | `출석` 배지 |
+| `onHero`, `heroAccent` | 초록 히어로 카드 위의 글자와 강조 숫자 |
+| `lowBar` | 출석률 60% 미만 막대 |
+| `handle` | 바텀시트 손잡이 |
+| `scanBg`, `scanGuide` | QR 스캔 화면 배경과 안내선 |
 
 `AppTheme.light`는 Material 3, 시드 `primary`, 스플래시 없음, 글자색 `ink`입니다. `useBrandFont: true`이면 `GoogleFonts.notoSansKr`를 적용합니다. `MyApp`의 기본값은 true입니다.
 
@@ -361,7 +407,41 @@ Authentication에서 이메일/비밀번호와 Google 로그인이 켜져 있어
 `home`, `reservation`, `attendance`, `settlement`, `myPage`. 라벨은 `홈`, `예약`, `출석`, `정산`, `마이페이지`.
 
 `MoaBottomNav`  
-`selected`와 `onSelected`. 출석 탭은 가운데로 떠 있는 QR 원이고, 나머지 선택 탭은 아이콘 뒤 캡슐을 그립니다. 탭 키는 `nav-${tab.name}`입니다. `onSelected`가 null이면 탭이 동작하지 않습니다.
+`selected`와 `onSelected`. 출석 탭은 가운데로 떠 있는 QR 원이고, 나머지 선택 탭은 아이콘 뒤 캡슐을 그립니다. 출석 탭이 선택되면 원이 연한 초록이 되고 `assets/attendance/nav_qr_selected.svg`를 그립니다. 탭 키는 `nav-${tab.name}`입니다. `onSelected`가 null이면 탭이 동작하지 않습니다.
+
+### `attendance_widgets.dart`
+
+출석 화면 일곱 개가 같이 씁니다. 버튼 글자가 13px이고 아이콘이 SVG라서 `MoaPrimaryButton` 대신 `AttendanceButton`을 씁니다.
+
+`AttendanceIcon`  
+`AttendanceIcon('clock')`은 `assets/attendance/clock.svg`입니다. 있는 파일은 `back`, `back_white`, `calendar`, `chart`, `chart_note`, `check`, `chevron_white`, `clock`, `close`, `flash`, `hero_star`, `history`, `nav_qr_selected`, `people`, `qr_white`, `refresh`, `scan`, `search`, `sort_chevron`, `warning`입니다.
+
+`AttendanceAppBar`  
+높이 70. `title`, `onBack`, `trailing`. `dark`면 흰 글자와 흰 화살표, `close`면 화살표 대신 닫기 아이콘입니다.
+
+`AttendanceButton`  
+`label`, `onPressed`, `tone`(`primary`, `soft`, `outline`, `white`), `icon`(SVG 이름), `busy`, `height` 기본 46.
+
+`AttendanceBottomBar`  
+화면 아래에 붙는 버튼 줄. 자식을 같은 너비로 나눕니다.
+
+`AttendanceCard`, `AttendanceInfoCard`  
+흰 카드와, `(항목, 값, 값 색)` 줄을 쌓는 정보 카드.
+
+`AttendanceMemberRow`, `AttendanceAvatar`, `AttendanceAvatarStack`  
+아바타·이름·설명·오른쪽 위젯 한 줄, 36px 아바타, 26px 아바타를 6px씩 겹친 줄. 색은 `attendeeColor(event, userId)`로 정해서 화면이 달라도 같은 사람이 같은 색입니다.
+
+`AttendanceBadge`  
+`tone`이 `present`(출석), `manual`(수동 출석), `open`(진행 중), `neutral`(예정·완료·미출석), `absent`(결석).
+
+`LiveDot`, `LiveCaption`, `AttendanceProgress`  
+실시간 점, 점과 설명, 7px 진행 막대.
+
+`AttendanceInfoNote`, `AttendanceSectionTitle`, `AttendanceStatusHero`  
+아이콘이 붙은 안내 상자, 섹션 제목, 큰 아이콘·제목·설명을 가운데 놓는 결과 안내.
+
+`showAttendanceSheet(context, builder:)`  
+손잡이와 닫기 버튼이 있는 바텀시트. 키보드가 올라오면 같이 올라갑니다.
 
 ### `club_chrome.dart`
 
@@ -437,6 +517,7 @@ Authentication에서 이메일/비밀번호와 Google 로그인이 켜져 있어
 | `HomeArgs` | 홈의 `clubId` |
 | `ClubArgs` | 마이페이지, 모임 목록, 대기, 설정 등 `clubId`만 필요한 화면 |
 | `MeetingArgs` | `clubId`, 선택 `eventId`, `role` 기본 `member`, `selectedIds` |
+| `AttendanceDoneArgs` | 출석 완료 화면의 `CheckInResult`와 `role`. `lib/models/attendance.dart`에 있음 |
 
 `lib/models/club.dart`의 화면용 묶음은 다음과 같습니다.
 
@@ -446,13 +527,24 @@ Authentication에서 이메일/비밀번호와 Google 로그인이 켜져 있어
 - `ProfileData.visibleClubs`는 대기가 아닌 동아리를 대표 우선, 그다음 이름순으로 정렬합니다. `ownedLine` / `joinedLine`은 탈퇴 시트 문구입니다.
 - `ImagePayload`는 `bytes`와 `contentType`입니다. Storage 업로드 직전에만 사용합니다.
 
-`lib/core/format.dart`는 화면 문자열을 한곳으로 모읍니다. 금액은 `formatWon`, 숫자만 뽑으면 `parseWon`, 알림 시각은 `formatNoticeTime`, 모임 구간은 `formatMeetingWhen`, 초대 만료는 `formatInviteUntil`입니다. 날짜 비교는 `isSameDay`입니다.
+`lib/core/format.dart`는 화면 문자열을 한곳으로 모읍니다. 금액은 `formatWon`, 숫자만 뽑으면 `parseWon`, 알림 시각은 `formatNoticeTime`, 모임 구간은 `formatMeetingWhen`, 날짜와 요일만은 `formatDayLabel`, 초대 만료는 `formatInviteUntil`입니다. 날짜 비교는 `isSameDay`입니다.
 
 `lib/core/kst.dart`의 `kstNow()`는 기기의 로컬 시간대가 아니라 UTC에 9시간을 더한 벽시계입니다. 모임 시각을 저장할 때는 `kstWallToInstant`를 씁니다.
 
 `lib/core/meeting_filter.dart`의 `MeetingFilter`는 `upcoming`, `past`, `all`입니다. `attendanceOpen`인 모임은 과거로 보지 않습니다. 상태가 `past`, `done`, `완료`이거나 시작일이 오늘보다 이전이면 과거입니다. `uniqueMeetings`는 제목과 분 단위 시작 시각이 같은 항목을 하나면 남깁니다.
 
-`BaseViewModel`은 `isLoading`, `error`, `setLoading`, `setError`만 제공합니다. 로그인·가입 뷰모델이 이를 상속합니다.
+`lib/models/attendance.dart`에는 `AttendanceRecord`(`checkedAt`은 KST 벽시계), `QrSession`(`expiresAt`은 실제 시각이라 `DateTime.now()`와 비교), `CheckInResult`(`duplicate`가 true면 이미 출석한 모임), `AttendanceRate`(`percent`는 대상 모임이 없으면 null), `MemberRate`가 있습니다.
+
+`lib/core/attendance.dart`는 출석 계산을 순수 함수로 모읍니다.
+
+- `semesterOf(date)`는 1학기 3~8월, 2학기 9월~이듬해 2월입니다. `Semester.previous`로 지난 학기를 얻습니다.
+- `attendanceRateFor`는 `attendeeIds`에 든 모임만 셉니다. 끝난 모임(`isPastMeeting`)은 결석도 세고, 아직 끝나지 않은 모임은 출석했을 때만 셉니다.
+- `memberRates`는 대상 모임이 없는 멤버를 뺍니다. `averageRate`는 출석 수 합 ÷ 대상 수 합입니다.
+- `presentRecords(event, records)`는 참석 대상의 기록만 남깁니다. 화면의 출석 수는 이 길이입니다.
+- `attendanceHistoryIds`는 출석 기록을 읽을 모임을 고릅니다. 이번 학기와 지난 학기 중 `checkedInCount > 0`이거나 출석이 열린 모임입니다.
+- `currentAttendanceEvent`는 출석 탭 맨 위 모임(출석이 열린 모임, 오늘 모임, 가장 가까운 모임 순), `recentAttendanceEvents`는 최근 일정 순서입니다.
+
+`BaseViewModel`은 `isLoading`, `error`, `setLoading`, `setError`만 제공합니다. 로그인·가입 뷰모델이 이를 상속합니다. `MeetingAttendanceFeed`도 이를 상속하고, `watchEvent`와 `watchAttendance`를 구독해서 `event`, `records`, `checked`, `total`, `percent`를 줍니다. 출석 관리·QR 코드·출석자 명단 화면이 `ListenableBuilder`로 씁니다. 화면을 닫을 때 `dispose`를 부릅니다.
 
 ## 경로
 
@@ -473,12 +565,21 @@ Authentication에서 이메일/비밀번호와 Google 로그인이 켜져 있어
 | `meetingDetail` | `/home/meetings/detail` | `MeetingArgs` |
 | `meetingEdit` | `/home/meetings/edit` | `MeetingArgs` |
 | `meetingAttendees` | `/home/meetings/attendees` | `MeetingArgs` |
+| `attendance` | `/home/attendance` | `ClubArgs`. 하단 출석 탭 |
+| `attendanceRates` | `/home/attendance/rates` | `ClubArgs` |
+| `attendanceScan` | `/home/attendance/scan` | `MeetingArgs`. `eventId`가 있으면 모임 이름을 보여 줌 |
+| `attendanceDone` | `/home/attendance/done` | `AttendanceDoneArgs` |
+| `attendanceManage` | `/home/meetings/attendance` | `MeetingArgs`. 스태프용 |
+| `attendanceQr` | `/home/meetings/attendance/qr` | `MeetingArgs`. 스태프용. 열면 출석이 열림 |
+| `attendanceRoster` | `/home/meetings/attendance/roster` | `MeetingArgs`. 스태프용 |
 | `clubSettings` | `/clubs/settings` | `ClubArgs` |
 | `memberRoles` | `/clubs/members` | `ClubArgs` |
 | `joinInbox` | `/clubs/join/inbox` | `ClubArgs` |
 | `scan` | `/clubs/join/scan` | 없음. QR 스캔 |
 
-로그인 뒤 스택을 교체할 때는 `openLaunch(context, deps)`를 호출합니다. 이 함수가 `launchFor` 결과로 `pushNamedAndRemoveUntil`을 실행합니다.
+로그인 뒤 스택을 교체할 때는 `openLaunch(context, deps)`를 호출합니다. 이 함수가 `launchFor` 결과로 `pushNamedAndRemoveUntil`을 실행합니다. 쌓인 화면을 걷고 동아리 홈으로 돌아갈 때는 `goClubHome(context, clubId)`를 씁니다.
+
+모임 상세에서 스태프는 `출석 현황`의 `명단 보기`로 `attendanceManage`에, 아래 `QR 출석 코드 띄우기`로 `attendanceQr`에 갑니다. 일반 멤버의 `명단 보기`는 읽기 전용 참석 명단 시트이고 QR 버튼은 보이지 않습니다. `완료`인 모임은 QR 출석을 열지 않습니다.
 
 ## 작업할 때
 

@@ -14,6 +14,13 @@ abstract final class AppRoutes {
   static const meetingDetail = '/home/meetings/detail';
   static const meetingEdit = '/home/meetings/edit';
   static const meetingAttendees = '/home/meetings/attendees';
+  static const attendance = '/home/attendance';
+  static const attendanceRates = '/home/attendance/rates';
+  static const attendanceScan = '/home/attendance/scan';
+  static const attendanceDone = '/home/attendance/done';
+  static const attendanceManage = '/home/meetings/attendance';
+  static const attendanceQr = '/home/meetings/attendance/qr';
+  static const attendanceRoster = '/home/meetings/attendance/roster';
   static const clubSettings = '/clubs/settings';
   static const memberRoles = '/clubs/members';
   static const joinInbox = '/clubs/join/inbox';

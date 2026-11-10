@@ -1,14 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_proj/core/attendance.dart';
 import 'package:flutter_proj/core/club_access.dart';
 import 'package:flutter_proj/core/format.dart';
 import 'package:flutter_proj/core/theme/app_colors.dart';
 import 'package:flutter_proj/models/app_user.dart';
+import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
 import 'package:flutter_proj/router/app_routes.dart';
 import 'package:flutter_proj/router/open_launch.dart';
+import 'package:flutter_proj/widgets/attendance_widgets.dart';
 import 'package:flutter_proj/widgets/club_chrome.dart';
 import 'package:flutter_proj/widgets/moa_widgets.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 class MeetingDetailScreen extends StatefulWidget {
   const MeetingDetailScreen({super.key, required this.deps, required this.args});
@@ -25,6 +29,11 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
   String _clubName = '';
   List<ClubMember> _members = const [];
   String? _message;
+  StreamSubscription<List<AttendanceRecord>>? _liveSub;
+
+  /// 실시간 출석 기록입니다. 아직 못 받았거나 읽을 수 없으면 null이고,
+  /// 그때는 모임 문서에 적힌 출석 수를 보여 줍니다.
+  List<AttendanceRecord>? _live;
 
   bool get _canManage => ClubAccess.showsSettings(widget.args.role);
 
@@ -32,6 +41,21 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
   void initState() {
     super.initState();
     _load();
+    final id = widget.args.eventId;
+    if (id != null) {
+      _liveSub = widget.deps.clubs.watchAttendance(clubId: widget.args.clubId, eventId: id).listen(
+        (records) {
+          if (mounted) setState(() => _live = records);
+        },
+        onError: (Object _) {},
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _liveSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -101,28 +125,22 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
     await _load();
   }
 
-  void _qr(ClubEvent event) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.background,
-      barrierColor: AppColors.dim,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('QR 출석 코드', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              Text(event.title, style: const TextStyle(color: AppColors.muted)),
-              const SizedBox(height: 16),
-              QrImageView(data: 'moa-attendance:${widget.args.clubId}:${event.id}', size: 220, backgroundColor: AppColors.white),
-            ],
-          ),
-        );
-      },
+  /// 운영진은 '명단 보기'에서 출석 관리로, 아래 버튼에서 QR 출석 코드로 갑니다.
+  Future<void> _openAttendance(String route, ClubEvent event) async {
+    await Navigator.pushNamed(
+      context,
+      route,
+      arguments: MeetingArgs(clubId: widget.args.clubId, eventId: event.id, role: widget.args.role),
     );
+    await _load();
+  }
+
+  void _openQr(ClubEvent event) {
+    if (event.status == '완료') {
+      showMoaError(context, StateError('완료된 모임은 QR 출석을 열 수 없어요. 출석 관리의 출석자 명단에서 직접 처리해 주세요.'));
+      return;
+    }
+    _openAttendance(AppRoutes.attendanceQr, event);
   }
 
   void _roster(ClubEvent event) {
@@ -167,7 +185,8 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
   Widget build(BuildContext context) {
     final event = _event;
     final total = event == null ? 0 : event.attendeeCount;
-    final checked = event?.checkedInCount ?? 0;
+    final live = _live;
+    final checked = event == null ? 0 : (live == null ? event.checkedInCount : presentRecords(event, live).length);
     final remaining = total - checked < 0 ? 0 : total - checked;
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -205,7 +224,11 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        _SectionHead(title: '출석 현황', action: '명단 보기', onAction: () => _roster(event)),
+                        _SectionHead(
+                          title: '출석 현황',
+                          action: '명단 보기',
+                          onAction: () => _canManage ? _openAttendance(AppRoutes.attendanceManage, event) : _roster(event),
+                        ),
                         const SizedBox(height: 10),
                         _Panel(
                           child: Padding(
@@ -228,22 +251,11 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                                       ),
                                     ),
                                     const Spacer(),
-                                    const DecoratedBox(
-                                      decoration: BoxDecoration(color: AppColors.live, shape: BoxShape.circle),
-                                      child: SizedBox(width: 7, height: 7),
-                                    ),
-                                    const SizedBox(width: 5),
-                                    const Text('실시간', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                                    const LiveCaption('실시간'),
                                   ],
                                 ),
                                 const SizedBox(height: 12),
-                                LinearProgressIndicator(
-                                  value: total == 0 ? 0 : checked / total,
-                                  minHeight: 7,
-                                  borderRadius: BorderRadius.circular(99),
-                                  color: AppColors.primary,
-                                  backgroundColor: AppColors.chip,
-                                ),
+                                AttendanceProgress(value: total == 0 ? 0 : checked / total),
                                 const SizedBox(height: 10),
                                 Text(
                                   'QR 출석 $checked명 · 아직 $remaining명이 출석하지 않았어요',
@@ -271,7 +283,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                   if (_canManage)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-                      child: MoaPrimaryButton(label: 'QR 출석 코드 띄우기', icon: Icons.qr_code_2, onPressed: () => _qr(event)),
+                      child: MoaPrimaryButton(label: 'QR 출석 코드 띄우기', icon: Icons.qr_code_2, onPressed: () => _openQr(event)),
                     ),
                 ],
               ),

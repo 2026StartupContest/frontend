@@ -281,6 +281,13 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
         selected: MoaTab.home,
         onSelected: (tab) {
           if (tab == MoaTab.home) Navigator.pop(context);
+          if (tab == MoaTab.attendance) {
+            Navigator.pushNamed(
+              context,
+              AppRoutes.attendance,
+              arguments: ClubArgs(widget.clubId),
+            ).then((_) => _load());
+          }
           if (tab == MoaTab.myPage) {
             Navigator.pushNamed(
               context,

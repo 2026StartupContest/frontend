@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/theme/app_colors.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 enum MoaTab { home, reservation, attendance, settlement, myPage }
 
@@ -101,6 +102,7 @@ class MoaBottomNav extends StatelessWidget {
   }
 
   Widget _center() {
+    final isSelected = selected == MoaTab.attendance;
     return Stack(
       alignment: Alignment.topCenter,
       children: [
@@ -109,19 +111,25 @@ class MoaBottomNav extends StatelessWidget {
           child: Container(
             width: 51.4,
             height: 51.4,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFFAF3E8), Color(0xFFEFE2C8)],
-              ),
+              color: isSelected ? _pill : null,
+              gradient: isSelected
+                  ? null
+                  : const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFFFAF3E8), Color(0xFFEFE2C8)],
+                    ),
               border: Border.all(color: AppColors.white, width: 2.3),
               boxShadow: const [
                 BoxShadow(color: Color(0x265F4A20), offset: Offset(0, 3.7), blurRadius: 4.1),
               ],
             ),
-            child: const Icon(Icons.qr_code_2, size: 24, color: AppColors.ink),
+            child: isSelected
+                ? SvgPicture.asset('assets/attendance/nav_qr_selected.svg')
+                : const Icon(Icons.qr_code_2, size: 24, color: AppColors.ink),
           ),
         ),
         const Positioned(

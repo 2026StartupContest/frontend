@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_proj/models/app_user.dart';
+import 'package:flutter_proj/models/attendance.dart';
 import 'package:flutter_proj/models/club.dart';
 import 'package:flutter_proj/router/app_routes.dart';
 import 'package:flutter_proj/router/open_launch.dart';
+import 'package:flutter_proj/screens/attendance_done_screen.dart';
+import 'package:flutter_proj/screens/attendance_home_screen.dart';
+import 'package:flutter_proj/screens/attendance_manage_screen.dart';
+import 'package:flutter_proj/screens/attendance_qr_screen.dart';
+import 'package:flutter_proj/screens/attendance_rates_screen.dart';
+import 'package:flutter_proj/screens/attendance_roster_screen.dart';
+import 'package:flutter_proj/screens/attendance_scan_screen.dart';
 import 'package:flutter_proj/screens/club_settings_screen.dart';
 import 'package:flutter_proj/screens/create_club_screen.dart';
 import 'package:flutter_proj/screens/home_screen.dart';
@@ -74,6 +82,34 @@ abstract final class AppRouter {
         args: settings.arguments! as MeetingArgs,
       ),
       AppRoutes.meetingAttendees => MeetingAttendeesScreen(
+        deps: deps,
+        args: settings.arguments! as MeetingArgs,
+      ),
+      AppRoutes.attendance => AttendanceHomeScreen(
+        deps: deps,
+        clubId: (settings.arguments! as ClubArgs).clubId,
+      ),
+      AppRoutes.attendanceRates => AttendanceRatesScreen(
+        deps: deps,
+        clubId: (settings.arguments! as ClubArgs).clubId,
+      ),
+      AppRoutes.attendanceScan => AttendanceScanScreen(
+        deps: deps,
+        args: settings.arguments! as MeetingArgs,
+      ),
+      AppRoutes.attendanceDone => AttendanceDoneScreen(
+        deps: deps,
+        args: settings.arguments! as AttendanceDoneArgs,
+      ),
+      AppRoutes.attendanceManage => AttendanceManageScreen(
+        deps: deps,
+        args: settings.arguments! as MeetingArgs,
+      ),
+      AppRoutes.attendanceQr => AttendanceQrScreen(
+        deps: deps,
+        args: settings.arguments! as MeetingArgs,
+      ),
+      AppRoutes.attendanceRoster => AttendanceRosterScreen(
         deps: deps,
         args: settings.arguments! as MeetingArgs,
       ),

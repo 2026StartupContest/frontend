@@ -36,6 +36,11 @@ String formatDueLabel(DateTime date) {
   return '${date.month}.$day (${weeks[date.weekday - 1]})';
 }
 
+String formatDayLabel(DateTime date) {
+  const weeks = ['월', '화', '수', '목', '금', '토', '일'];
+  return '${date.month}.${date.day} (${weeks[date.weekday - 1]})';
+}
+
 String formatWeekdayClock(DateTime date) {
   const weeks = ['월', '화', '수', '목', '금', '토', '일'];
   return '${weeks[date.weekday - 1]} ${formatClock(date)}';

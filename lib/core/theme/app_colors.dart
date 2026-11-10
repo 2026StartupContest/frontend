@@ -37,4 +37,14 @@ abstract final class AppColors {
   static const unpaidText = Color(0xFFC37550);
   static const roleGray = Color(0xFF7D867A);
   static const roleGrayBg = Color(0xFFF0F1EC);
+  static const track = Color(0xFFEDF0E6);
+  static const rowLabel = Color(0xFF5F6B5A);
+  static const presentBg = Color(0xFFF0F4EB);
+  static const presentText = Color(0xFF5F7B4E);
+  static const onHero = Color(0xFFDBE8DD);
+  static const heroAccent = Color(0xFFE2F4B5);
+  static const lowBar = Color(0xFFD9A07F);
+  static const handle = Color(0xFFD5DCCF);
+  static const scanBg = Color(0xFF121714);
+  static const scanGuide = Color(0xFF8FDC9B);
 }
