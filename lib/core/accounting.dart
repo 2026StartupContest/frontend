@@ -41,6 +41,23 @@ List<ActivityItem> recentLedgerActivities(
   ];
 }
 
+/// 같은 이름이면서 납부 기한이 같은 달인 회비가 이미 있는지 봅니다(#30).
+/// 회비 설정을 다시 저장하거나 연타해서 같은 달 회비가 두 번 생기는 것을 막습니다.
+bool hasDuplicateDuesRound(
+  Iterable<DuesRound> rounds, {
+  required String title,
+  required DateTime dueAt,
+}) {
+  final name = title.trim();
+  return rounds.any((round) {
+    final due = round.dueAt;
+    return round.title.trim() == name &&
+        due != null &&
+        due.year == dueAt.year &&
+        due.month == dueAt.month;
+  });
+}
+
 bool canManageBooks(String role) => ClubAccess.showsSettings(role);
 
 bool canRecordLedger(String role) => canManageBooks(role);

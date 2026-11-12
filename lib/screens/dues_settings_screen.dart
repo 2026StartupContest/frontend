@@ -108,6 +108,7 @@ class _DuesSettingsScreenState extends State<DuesSettingsScreen> {
   }
 
   Future<void> _save() async {
+    if (_busy) return;
     final uid = widget.deps.auth.currentUid;
     final amount = parseWon(_amount.text);
     if (uid == null || amount == null) {
