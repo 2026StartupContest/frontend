@@ -33,7 +33,7 @@ class MoaLogo extends StatelessWidget {
         MoaMark(size: size),
         const SizedBox(width: 10),
         Text(
-          '모아',
+          '모해',
           style: TextStyle(
             color: AppColors.primary,
             fontSize: size * 0.56,

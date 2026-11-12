@@ -84,7 +84,7 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen> {
     final uid = widget.deps.auth.currentUid;
     if (uid == null) return;
     if (parseAttendanceQr(raw) == null) {
-      _fail('모아 출석 QR이 아니에요.');
+      _fail('모해 출석 QR이 아니에요.');
       return;
     }
     setState(() {

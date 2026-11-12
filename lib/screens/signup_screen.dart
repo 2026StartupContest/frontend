@@ -261,5 +261,5 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 }
 
-const _termsBody = '모아 서비스는 동아리의 회비, 출석, 정산 기록을 구성원과 함께 보기 위한 도구입니다. 허위 정보나 다른 사람의 계정을 사용하면 이용이 제한될 수 있습니다.';
+const _termsBody = '모해 서비스는 동아리의 회비, 출석, 정산 기록을 구성원과 함께 보기 위한 도구입니다. 허위 정보나 다른 사람의 계정을 사용하면 이용이 제한될 수 있습니다.';
 const _privacyBody = '이름과 이메일은 동아리 구성원에게 표시되고, 가입 신청과 회비 확인에 사용됩니다. 비밀번호는 Firebase Authentication이 관리하며 앱에 저장하지 않습니다.';
