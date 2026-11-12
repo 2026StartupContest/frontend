@@ -1038,7 +1038,7 @@ class FirebaseClubService implements ClubGateway {
     required String raw,
   }) async {
     final payload = parseAttendanceQr(raw);
-    if (payload == null) throw StateError('모아 출석 QR이 아니에요.');
+    if (payload == null) throw StateError('모해 출석 QR이 아니에요.');
     final clubId = payload.clubId;
     final eventRef = _eventRef(clubId, payload.eventId);
     final recordRef = eventRef.collection('attendance').doc(uid);

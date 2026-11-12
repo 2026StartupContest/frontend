@@ -8,7 +8,7 @@ class DefaultFirebaseOptions {
 
   static FirebaseOptions get currentPlatform {
     if (defaultTargetPlatform == TargetPlatform.iOS) return ios;
-    throw UnsupportedError('모아 앱은 iOS에서 실행합니다.');
+    throw UnsupportedError('모해 앱은 iOS에서 실행합니다.');
   }
 
   static const ios = FirebaseOptions(

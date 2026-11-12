@@ -260,7 +260,7 @@ String settlementShareMessage({
     parts.join(' / '),
     attendance,
     accountLine,
-    '입금 후 모아에서 ‘입금 완료’를 눌러 주세요.',
+    '입금 후 모해에서 ‘입금 완료’를 눌러 주세요.',
   ].where((line) => line.trim().isNotEmpty).join('\n');
 }
 

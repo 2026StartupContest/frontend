@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '모아',
+      title: '모해',
       locale: const Locale('ko'),
       supportedLocales: const [Locale('ko'), Locale('en')],
       localizationsDelegates: const [

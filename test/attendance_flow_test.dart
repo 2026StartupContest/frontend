@@ -238,7 +238,7 @@ void main() {
       await tester.pump();
 
       expect(clubs.scanned, isEmpty);
-      expect(find.text('모아 출석 QR이 아니에요.'), findsOneWidget);
+      expect(find.text('모해 출석 QR이 아니에요.'), findsOneWidget);
       await _close(tester);
     });
 

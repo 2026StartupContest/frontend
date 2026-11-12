@@ -19,7 +19,7 @@ class NoClubScreen extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Text('모아', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.primary)),
+                const Text('모해', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.primary)),
                 const Spacer(),
                 IconButton(
                   onPressed: () async {
