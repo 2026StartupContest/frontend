@@ -204,7 +204,7 @@ List<MemberRate> sortRates(List<MemberRate> rates, {required bool highFirst}) {
 /// 출석이 열린 모임, 오늘 모임, 가장 가까운 다가오는 모임 순서입니다.
 ClubEvent? currentAttendanceEvent(List<ClubEvent> events, DateTime now) {
   for (final event in events) {
-    if (event.attendanceOpen && event.status != '완료') return event;
+    if (isAttendanceLive(event, now)) return event;
   }
   final today = todaysMeetings(events, now)
       .where((event) => !isPastMeeting(event, now))
@@ -227,14 +227,14 @@ List<ClubEvent> recentAttendanceEvents(
   int pastLimit = 4,
 }) {
   final dated = events.where((event) => event.startsAt != null).toList();
-  final open = dated.where((event) => event.attendanceOpen).toList()
+  final open = dated.where((event) => isAttendanceLive(event, now)).toList()
     ..sort(_byStart);
   final upcoming = dated
-      .where((event) => !event.attendanceOpen && !isPastMeeting(event, now))
+      .where((event) => !isAttendanceLive(event, now) && !isPastMeeting(event, now))
       .toList()
     ..sort(_byStart);
   final past = dated
-      .where((event) => !event.attendanceOpen && isPastMeeting(event, now))
+      .where((event) => !isAttendanceLive(event, now) && isPastMeeting(event, now))
       .toList()
     ..sort((a, b) => _byStart(b, a));
   return [

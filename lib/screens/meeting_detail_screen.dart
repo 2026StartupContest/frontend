@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/attendance.dart';
 import 'package:flutter_proj/core/club_access.dart';
 import 'package:flutter_proj/core/format.dart';
+import 'package:flutter_proj/core/kst.dart';
+import 'package:flutter_proj/core/meeting_filter.dart';
 import 'package:flutter_proj/core/theme/app_colors.dart';
 import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/models/attendance.dart';
@@ -339,10 +341,11 @@ class _DetailHero extends StatelessWidget {
 
   (String, Color, Color) _statusBadge(ClubEvent event) {
     final status = event.status;
-    if (event.attendanceOpen || status == '진행 중') {
+    if (isAttendanceLive(event, kstNow()) ||
+        (status == '진행 중' && !isPastMeeting(event, kstNow()))) {
       return ('진행 중', AppColors.peach, AppColors.copper);
     }
-    if (status == '완료') return ('완료', const Color(0xFFEEF0EA), const Color(0xFF7D867A));
+    if (status == '완료' || isPastMeeting(event, kstNow())) return ('완료', const Color(0xFFEEF0EA), const Color(0xFF7D867A));
     if (status.contains('예약')) return (status, AppColors.peach, AppColors.copper);
     return (status.isEmpty ? '예정' : status, const Color(0xFFEAF0E4), AppColors.primary);
   }

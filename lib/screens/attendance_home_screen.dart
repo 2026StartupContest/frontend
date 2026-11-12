@@ -194,6 +194,7 @@ class _AttendanceHomeScreenState extends State<AttendanceHomeScreen> {
               const SizedBox(height: 10),
               _Hero(
                 event: current,
+                open: current != null && isAttendanceLive(current, now),
                 checked: current == null ? 0 : _checked(current),
                 attended:
                     current != null &&
@@ -261,6 +262,7 @@ class _AttendanceHomeScreenState extends State<AttendanceHomeScreen> {
 class _Hero extends StatelessWidget {
   const _Hero({
     required this.event,
+    required this.open,
     required this.checked,
     required this.attended,
     required this.onManage,
@@ -268,6 +270,7 @@ class _Hero extends StatelessWidget {
   });
 
   final ClubEvent? event;
+  final bool open;
   final int checked;
   final bool attended;
   final VoidCallback? onManage;
@@ -277,7 +280,6 @@ class _Hero extends StatelessWidget {
   Widget build(BuildContext context) {
     final event = this.event;
     final start = event?.startsAt;
-    final open = event != null && event.attendanceOpen;
     final status = event == null
         ? '출석할 모임을 기다리고 있어요'
         : attended
@@ -636,7 +638,7 @@ class _ScheduleRow extends StatelessWidget {
     final when = isSameDay(start, now)
         ? '오늘 ${formatClock(start)}'
         : formatWeekdayClock(start);
-    if (event.attendanceOpen) {
+    if (isAttendanceLive(event, now)) {
       return (
         '$when · $checked / ${event.attendeeCount}명',
         const AttendanceBadge(label: '진행 중', tone: AttendanceBadgeTone.open),

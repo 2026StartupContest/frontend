@@ -124,7 +124,8 @@ void main() {
     final undated = _event(id: 'plain');
     expect(isPastMeeting(today, now), isFalse);
     expect(isPastMeeting(past, now), isTrue);
-    expect(isPastMeeting(open, now), isFalse);
+    // 출석을 닫지 않았어도 날짜가 지난 모임은 지난 모임입니다(#13).
+    expect(isPastMeeting(open, now), isTrue);
     expect(isPastMeeting(undated, now), isFalse);
     expect(todaysMeetings([today, past], now).map((event) => event.id), [
       'today',
@@ -276,6 +277,26 @@ void main() {
     expect((average.attended, average.total), (11, 13));
   });
 
+  test('출석을 닫지 않은 지난 모임은 진행 중으로 올리지 않는다 (#13)', () {
+    final now = DateTime(2026, 11, 13, 1, 59);
+    final stale = _event(id: 'stale', startsAt: DateTime(2026, 11, 11, 14), attendanceOpen: true);
+    final todayOpen = _event(id: 'todayOpen', startsAt: DateTime(2026, 11, 13, 0, 30), attendanceOpen: true);
+    final next = _event(id: 'next', startsAt: DateTime(2026, 11, 18, 14));
+
+    expect(isAttendanceLive(stale, now), isFalse);
+    expect(isPastMeeting(stale, now), isTrue);
+    expect(isAttendanceLive(todayOpen, now), isTrue);
+    expect(isPastMeeting(todayOpen, now), isFalse);
+
+    expect(currentAttendanceEvent([stale, next], now)?.id, 'next');
+    expect(currentAttendanceEvent([stale], now), isNull);
+    expect(currentAttendanceEvent([stale, todayOpen, next], now)?.id, 'todayOpen');
+    expect(
+      recentAttendanceEvents([stale, next, todayOpen], now).map((event) => event.id),
+      ['todayOpen', 'next', 'stale'],
+    );
+  });
+
   test('출석 수는 참석 대상의 기록만 센다', () {
     final event = _event(id: 'e', attendeeIds: ['a', 'b']);
     final present = presentRecords(event, [_record('a'), _record('gone')]);
@@ -288,7 +309,7 @@ void main() {
     final older = _event(id: 'older', startsAt: DateTime(2026, 10, 17, 18));
     final today = _event(id: 'today', startsAt: DateTime(2026, 10, 31, 14));
     final next = _event(id: 'next', startsAt: DateTime(2026, 11, 7, 14));
-    final open = _event(id: 'open', startsAt: DateTime(2026, 10, 30, 14), attendanceOpen: true);
+    final open = _event(id: 'open', startsAt: DateTime(2026, 10, 31, 8), attendanceOpen: true);
     final undated = _event(id: 'plain');
 
     expect(currentAttendanceEvent([past, next, today], now)?.id, 'today');
