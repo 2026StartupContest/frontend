@@ -1247,6 +1247,14 @@ class FirebaseClubService implements ClubGateway {
     if (name.isEmpty) throw StateError('회비 이름을 입력해 주세요.');
     if (amount <= 0) throw StateError('금액을 입력해 주세요.');
     if (targets.isEmpty) throw StateError('납부 대상을 골라 주세요.');
+    final existing = await _clubs.doc(clubId).collection('dues').get();
+    if (hasDuplicateDuesRound(
+      existing.docs.map(_duesFrom),
+      title: name,
+      dueAt: dueAt,
+    )) {
+      throw StateError('이미 등록된 회비예요.');
+    }
     final duesRef = _clubs.doc(clubId).collection('dues').doc();
     final batch = _db.batch();
     batch.set(duesRef, {

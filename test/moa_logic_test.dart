@@ -169,6 +169,24 @@ void main() {
     expect(recentLedgerActivities(const []), isEmpty);
   });
 
+  test('같은 이름·같은 달 회비는 중복으로 본다 (#30)', () {
+    DuesRound round(String title, DateTime? dueAt) => DuesRound(
+          id: title,
+          title: title,
+          amount: 30000,
+          repeat: 'monthly',
+          target: 'all',
+          targetIds: const [],
+          dueAt: dueAt,
+        );
+    final rounds = [round('11월 회비', DateTime(2026, 11, 18))];
+    expect(hasDuplicateDuesRound(rounds, title: '11월 회비', dueAt: DateTime(2026, 11, 30)), isTrue);
+    expect(hasDuplicateDuesRound(rounds, title: ' 11월 회비 ', dueAt: DateTime(2026, 11, 18)), isTrue);
+    expect(hasDuplicateDuesRound(rounds, title: '11월 회비', dueAt: DateTime(2026, 12, 18)), isFalse);
+    expect(hasDuplicateDuesRound(rounds, title: '12월 회비', dueAt: DateTime(2026, 11, 18)), isFalse);
+    expect(hasDuplicateDuesRound([round('11월 회비', null)], title: '11월 회비', dueAt: DateTime(2026, 11, 18)), isFalse);
+  });
+
   test('탈퇴 안내는 회장 동아리와 나가는 동아리를 구분한다', () {
     final user = AppUser(
       id: 'u',
