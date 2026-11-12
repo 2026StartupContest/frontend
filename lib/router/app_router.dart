@@ -38,6 +38,7 @@ import 'package:flutter_proj/screens/join_code_screen.dart';
 import 'package:flutter_proj/screens/join_pending_screen.dart';
 import 'package:flutter_proj/screens/join_request_screen.dart';
 import 'package:flutter_proj/screens/ledger_screens.dart';
+import 'package:flutter_proj/screens/launch_retry_screen.dart';
 import 'package:flutter_proj/screens/login_screen.dart';
 import 'package:flutter_proj/screens/no_club_screen.dart';
 import 'package:flutter_proj/screens/signup_done_screen.dart';
@@ -65,6 +66,7 @@ abstract final class AppRouter {
         deps: deps,
         args: settings.arguments! as SignupDoneArgs,
       ),
+      AppRoutes.launchRetry => LaunchRetryScreen(deps: deps),
       AppRoutes.noClub => NoClubScreen(deps: deps),
       AppRoutes.createClub => CreateClubScreen(deps: deps),
       AppRoutes.invite => InviteScreen(

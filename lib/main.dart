@@ -30,12 +30,24 @@ Future<void> main() async {
     ),
   );
   final uid = dependencies.auth.currentUid;
-  final launch = uid == null ? null : await dependencies.clubs.launchFor(uid);
+  // 오프라인 등으로 시작 정보를 못 불러와도 앱이 멈추지 않고 다시 시도 화면을 띄웁니다(#20).
+  String initialRoute = AppRoutes.login;
+  Object? initialArguments;
+  if (uid != null) {
+    try {
+      final launch = await dependencies.clubs.launchFor(uid);
+      initialRoute = launch.route;
+      initialArguments = launch.arguments;
+    } catch (error) {
+      debugPrint('launchFor failed: $error');
+      initialRoute = AppRoutes.launchRetry;
+    }
+  }
   runApp(
     MyApp(
       dependencies: dependencies,
-      initialRoute: launch?.route ?? AppRoutes.login,
-      initialArguments: launch?.arguments,
+      initialRoute: initialRoute,
+      initialArguments: initialArguments,
     ),
   );
 }

@@ -1,5 +1,6 @@
 abstract final class AppRoutes {
   static const login = '/login';
+  static const launchRetry = '/launch-retry';
   static const signup = '/signup';
   static const signupDone = '/signup-done';
   static const noClub = '/start';
