@@ -20,6 +20,10 @@ migrate_working_dir/
 
 .env
 
+# Firebase local cache and service account keys
+.firebase/
+*-firebase-adminsdk-*.json
+
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
@@ -51,3 +55,6 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+
+# Nested design repo (not part of this app)
+frontend/
