@@ -1,5 +1,7 @@
 import 'package:flutter_proj/core/club_access.dart';
+import 'package:flutter_proj/core/format.dart';
 import 'package:flutter_proj/models/accounting.dart';
+import 'package:flutter_proj/models/club.dart';
 
 abstract final class AccountingSegment {
   static const dues = 'dues';
@@ -18,6 +20,26 @@ abstract final class LedgerKind {
 }
 
 const ledgerCategories = ['물품 구매', '활동비', '모임 지원', '기타'];
+
+/// 홈 「차곡차곡, 최근 기록」에 보일 회계 장부 최신 거래입니다. 지출은 음수 금액입니다.
+List<ActivityItem> recentLedgerActivities(
+  Iterable<LedgerEntry> entries, {
+  int limit = 5,
+}) {
+  final sorted = entries.toList()
+    ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+  return [
+    for (final entry in sorted.take(limit))
+      ActivityItem(
+        id: entry.id,
+        title: entry.title,
+        subtitle:
+            '${formatShortDay(entry.occurredAt)} · ${entry.income ? '수입' : '지출'}',
+        amount: entry.income ? entry.amount.abs() : -entry.amount.abs(),
+        amountNote: entry.memo.isNotEmpty ? entry.memo : entry.category,
+      ),
+  ];
+}
 
 bool canManageBooks(String role) => ClubAccess.showsSettings(role);
 

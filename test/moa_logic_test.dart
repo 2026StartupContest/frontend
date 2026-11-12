@@ -276,6 +276,32 @@ void main() {
     expect((average.attended, average.total), (11, 13));
   });
 
+  test('홈 최근 기록은 회계 장부 최신 거래 5건으로 만든다 (#15)', () {
+    LedgerEntry entry(String id, String kind, int amount, int day) => LedgerEntry(
+          id: id,
+          kind: kind,
+          amount: amount,
+          title: '거래 $id',
+          occurredAt: DateTime(2026, 11, day, 12),
+          category: '활동비',
+          memo: kind == LedgerKind.income ? '회비 입금 확인' : '',
+          actorId: 'owner',
+          actorName: '김병진',
+        );
+    final items = recentLedgerActivities([
+      for (var day = 1; day <= 6; day++) entry('i$day', LedgerKind.income, 10000, day),
+      entry('spend', LedgerKind.expense, 4500, 7),
+    ]);
+    expect(items.map((item) => item.id), ['spend', 'i6', 'i5', 'i4', 'i3']);
+    expect(items.first.amount, -4500);
+    expect(items.first.income, isFalse);
+    expect(items.first.subtitle, '11.7 · 지출');
+    expect(items.first.amountNote, '활동비');
+    expect(items[1].amount, 10000);
+    expect(items[1].amountNote, '회비 입금 확인');
+    expect(recentLedgerActivities(const []), isEmpty);
+  });
+
   test('출석 수는 참석 대상의 기록만 센다', () {
     final event = _event(id: 'e', attendeeIds: ['a', 'b']);
     final present = presentRecords(event, [_record('a'), _record('gone')]);
