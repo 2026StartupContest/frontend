@@ -384,7 +384,8 @@ Future<int?> askSettlementAmount(
             SettlementBottomButton(
               label: '입력하기',
               onPressed: () =>
-                  Navigator.pop(context, int.tryParse(controller.text) ?? 0),
+                  // 초기값이 '120,000'처럼 쉼표로 채워져 있어 parseWon으로 읽습니다(#18).
+                  Navigator.pop(context, parseWon(controller.text) ?? 0),
             ),
           ],
         ),
