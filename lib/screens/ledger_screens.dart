@@ -751,6 +751,26 @@ class _LedgerDetailScreenState extends State<LedgerDetailScreen> {
   }
 
   Future<void> _delete() async {
+    if (_busy) return;
+    // 삭제는 되돌릴 수 없고 잔액에 바로 반영되므로 한 번 더 확인합니다(#32).
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('이 거래를 삭제할까요?'),
+        content: const Text('잔액에 바로 반영돼요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제', style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
     setState(() => _busy = true);
     try {
       await widget.deps.clubs.deleteLedgerEntry(clubId: widget.args.clubId, entryId: widget.args.entryId!);
