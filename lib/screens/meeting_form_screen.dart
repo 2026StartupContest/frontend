@@ -461,20 +461,47 @@ class _MeetingFormScreenState extends State<MeetingFormScreen> {
   }
 
   Future<int?> _askAmount(int? current) async {
-    final controller = TextEditingController(text: current?.toString() ?? '');
     final raw = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('1인 금액'),
-        content: TextField(controller: controller, keyboardType: TextInputType.number, autofocus: true),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-          TextButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('저장')),
-        ],
-      ),
+      builder: (context) => _AmountDialog(initial: current),
     );
-    controller.dispose();
     if (raw == null) return null;
     return parseWon(raw);
+  }
+}
+
+/// 1인 금액 입력 다이얼로그입니다.
+/// controller를 다이얼로그 State가 직접 갖고 있어서, 닫힘 애니메이션이 끝나 위젯이
+/// 사라질 때 dispose됩니다(#17).
+class _AmountDialog extends StatefulWidget {
+  const _AmountDialog({required this.initial});
+
+  final int? initial;
+
+  @override
+  State<_AmountDialog> createState() => _AmountDialogState();
+}
+
+class _AmountDialogState extends State<_AmountDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial?.toString() ?? '',
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('1인 금액'),
+      content: TextField(controller: _controller, keyboardType: TextInputType.number, autofocus: true),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        TextButton(onPressed: () => Navigator.pop(context, _controller.text), child: const Text('저장')),
+      ],
+    );
   }
 }
