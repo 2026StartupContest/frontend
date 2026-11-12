@@ -1303,24 +1303,35 @@ class FirebaseClubService implements ClubGateway {
         .doc(duesId)
         .collection('payments')
         .doc(userId);
-    final batch = _db.batch();
-    batch.update(payment, {
-      'status': 'paid',
-      'confirmedAt': FieldValue.serverTimestamp(),
-      'confirmedBy': actorId,
+    // 같은 납부를 두 번 확인해도(연타, 재진입, 운영진 동시 확인) 장부가 한 번만 남도록
+    // 결제 상태를 트랜잭션 안에서 확인하고, 장부 문서 ID를 납부마다 하나로 고정합니다.
+    final ledger = _clubs
+        .doc(clubId)
+        .collection('ledger')
+        .doc('dues_${duesId}_$userId');
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(payment);
+      if (!snap.exists) throw StateError('입금 정보를 찾을 수 없어요.');
+      if (snap.data()?['status'] != 'reported') {
+        throw StateError('이미 확인된 입금이에요.');
+      }
+      tx.update(payment, {
+        'status': 'paid',
+        'confirmedAt': FieldValue.serverTimestamp(),
+        'confirmedBy': actorId,
+      });
+      tx.set(ledger, {
+        'kind': 'income',
+        'amount': amount,
+        'title': ledgerTitle.trim(),
+        'occurredAt': FieldValue.serverTimestamp(),
+        'category': '활동비',
+        'memo': '회비 입금 확인',
+        'actorId': actorId,
+        'actorName': actorName.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     });
-    batch.set(_clubs.doc(clubId).collection('ledger').doc(), {
-      'kind': 'income',
-      'amount': amount,
-      'title': ledgerTitle.trim(),
-      'occurredAt': FieldValue.serverTimestamp(),
-      'category': '활동비',
-      'memo': '회비 입금 확인',
-      'actorId': actorId,
-      'actorName': actorName.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    await batch.commit();
   }
 
   @override
