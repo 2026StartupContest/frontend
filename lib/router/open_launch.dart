@@ -34,12 +34,13 @@ void goClubHome(BuildContext context, String clubId) {
   }
 }
 
-void openAccounting(
+/// 회계 화면을 엽니다. 돌아왔을 때 갱신할 수 있도록 화면이 닫히면 끝나는 Future를 돌려줍니다.
+Future<void> openAccounting(
   BuildContext context,
   String clubId, {
   String segment = AccountingSegment.dues,
 }) {
-  Navigator.pushNamed(
+  return Navigator.pushNamed(
     context,
     AppRoutes.accounting,
     arguments: AccountingArgs(clubId, segment),

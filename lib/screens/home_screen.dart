@@ -119,7 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       AppRoutes.meetings,
       arguments: ClubArgs(_clubId),
-    );
+    ).then((_) => _load());
   }
 
   Future<void> _openInbox() {
@@ -222,14 +222,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                 context,
                                 _clubId,
                                 segment: AccountingSegment.dues,
-                              );
+                              ).then((_) => _load());
                             }
                             if (key == 'ledger') {
                               openAccounting(
                                 context,
                                 _clubId,
                                 segment: AccountingSegment.ledger,
-                              );
+                              ).then((_) => _load());
                             }
                             if (key == 'settle') {
                               Navigator.pushNamed(
@@ -286,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
               context,
               AppRoutes.places,
               arguments: PlaceFlowArgs(clubId: _clubId),
-            );
+            ).then((_) => _load());
           }
           if (tab == MoaTab.attendance) {
             Navigator.pushNamed(
@@ -296,14 +296,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ).then((_) => _load());
           }
           if (tab == MoaTab.settlement) {
-            openAccounting(context, _clubId);
+            openAccounting(context, _clubId).then((_) => _load());
           }
           if (tab == MoaTab.myPage) {
             Navigator.pushNamed(
               context,
               AppRoutes.myPage,
               arguments: ClubArgs(_clubId),
-            );
+            ).then((_) => _load());
           }
         },
       ),
