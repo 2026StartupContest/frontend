@@ -49,11 +49,14 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (error) {
       if (mounted) {
-        setState(
-          () => _message = error.toString().replaceFirst('Bad state: ', ''),
-        );
+        setState(() => _message = friendlyErrorMessage(error));
       }
     }
+  }
+
+  void _retry() {
+    setState(() => _message = null);
+    _load();
   }
 
   Future<void> _openNotices() async {
@@ -137,11 +140,11 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppColors.background,
       extendBody: true,
       body: data == null
-          ? Center(
-              child: _message == null
-                  ? const CircularProgressIndicator(color: AppColors.primary)
-                  : Text(_message!),
-            )
+          ? _message == null
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                )
+              : MoaErrorState(message: _message!, onRetry: _retry)
           : SafeArea(
               bottom: false,
               child: ListView(

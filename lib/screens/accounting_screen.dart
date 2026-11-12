@@ -54,7 +54,7 @@ class _AccountingScreenState extends State<AccountingScreen> {
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() => _message = error.toString().replaceFirst('Bad state: ', ''));
+      setState(() => _message = friendlyErrorMessage(error));
     }
   }
 
@@ -103,14 +103,17 @@ class _AccountingScreenState extends State<AccountingScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: data == null
-          ? Center(
-              child: _message == null
-                  ? const CircularProgressIndicator(color: AppColors.primary)
-                  : Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(_message!, textAlign: TextAlign.center),
-                    ),
-            )
+          ? _message == null
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                )
+              : MoaErrorState(
+                  message: _message!,
+                  onRetry: () {
+                    setState(() => _message = null);
+                    _load();
+                  },
+                )
           : SafeArea(
               bottom: false,
               child: ListView(

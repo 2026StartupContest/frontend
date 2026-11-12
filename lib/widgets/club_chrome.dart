@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:firebase_core/firebase_core.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/club_access.dart';
 import 'package:flutter_proj/core/format.dart';
@@ -681,8 +683,73 @@ class MemberAvatar extends StatelessWidget {
   }
 }
 
+/// 사용자에게 보여 줄 에러 문구입니다. Firebase 원문(영어) 대신 한국어 안내를 돌려줍니다(#20).
+String friendlyErrorMessage(Object error) {
+  if (error is StateError) return error.message;
+  if (error is FirebaseException) {
+    switch (error.code) {
+      case 'unavailable':
+      case 'network-request-failed':
+      case 'deadline-exceeded':
+        return '네트워크 연결을 확인해 주세요.';
+      case 'permission-denied':
+        return '권한이 없어요. 운영진에게 확인해 주세요.';
+    }
+  }
+  return '잠시 후 다시 시도해 주세요.';
+}
+
 Future<void> showMoaError(BuildContext context, Object error) async {
   if (!context.mounted) return;
-  final raw = error.toString().replaceFirst('Bad state: ', '');
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(raw)));
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(friendlyErrorMessage(error))),
+  );
+}
+
+/// 화면 전체를 불러오지 못했을 때 보여 주는 상태입니다. 다시 시도와 뒤로가기를 제공합니다.
+class MoaErrorState extends StatelessWidget {
+  const MoaErrorState({super.key, required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final canPop = Navigator.of(context).canPop();
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.wifi_off_rounded, size: 36, color: AppColors.muted),
+              const SizedBox(height: 12),
+              const Text(
+                '화면을 불러오지 못했어요',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -0.4),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, color: AppColors.muted),
+              ),
+              const SizedBox(height: 18),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                onPressed: onRetry,
+                child: const Text('다시 시도'),
+              ),
+              if (canPop)
+                TextButton(
+                  onPressed: () => Navigator.maybePop(context),
+                  child: const Text('뒤로 가기', style: TextStyle(color: AppColors.muted)),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
