@@ -4,6 +4,7 @@ import 'package:flutter_proj/core/accounting.dart';
 import 'package:flutter_proj/core/format.dart';
 import 'package:flutter_proj/core/kst.dart';
 import 'package:flutter_proj/core/theme/app_colors.dart';
+import 'package:flutter_proj/core/won_input_formatter.dart';
 import 'package:flutter_proj/router/open_launch.dart';
 import 'package:flutter_proj/models/accounting.dart';
 import 'package:flutter_proj/models/app_user.dart';
@@ -375,12 +376,6 @@ class _LedgerEntryScreenState extends State<LedgerEntryScreen> {
     }
   }
 
-  void _setAmount(String value) {
-    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-    final next = digits.isEmpty ? '' : formatGrouped(int.parse(digits));
-    if (next == _amount.text) return;
-    _amount.value = TextEditingValue(text: next, selection: TextSelection.collapsed(offset: next.length));
-  }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -457,7 +452,7 @@ class _LedgerEntryScreenState extends State<LedgerEntryScreen> {
                         TextField(
                           controller: _amount,
                           keyboardType: TextInputType.number,
-                          onChanged: _setAmount,
+                          inputFormatters: const [WonInputFormatter()],
                           style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -1, color: AppColors.ink),
                           decoration: const InputDecoration(
                             isDense: true,
