@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/club_access.dart';
 import 'package:flutter_proj/core/format.dart';
 import 'package:flutter_proj/core/kst.dart';
+import 'package:flutter_proj/core/meeting_filter.dart';
 import 'package:flutter_proj/core/theme/app_colors.dart';
 import 'package:flutter_proj/models/club.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -397,7 +398,7 @@ class EventCard extends StatelessWidget {
                       child: Text(badge, style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w600)),
                     ),
                     const Spacer(),
-                    if (event.attendanceOpen)
+                    if (isAttendanceLive(event, kstNow()))
                       const Row(
                         children: [
                           DecoratedBox(
