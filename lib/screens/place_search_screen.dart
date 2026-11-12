@@ -197,7 +197,7 @@ class _MapHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        const Positioned.fill(child: _DummyMap()),
+        Positioned.fill(child: _DummyMap(contentTop: top + 100)),
         Positioned(
           top: top,
           left: 0,
@@ -312,22 +312,33 @@ class _MapHeader extends StatelessWidget {
 }
 
 class _DummyMap extends StatelessWidget {
-  const _DummyMap();
+  const _DummyMap({required this.contentTop});
+
+  /// 상태바·제목·검색창 아래, 핀을 놓을 수 있는 영역이 시작되는 높이입니다.
+  final double contentTop;
 
   @override
   Widget build(BuildContext context) {
-    return const Stack(
+    return Stack(
       fit: StackFit.expand,
       children: [
-        Image(
-          image: AssetImage(placeMapAsset),
-          fit: BoxFit.cover,
+        // 지도 이미지 맨 위에 박힌 지명 글자가 상태바와 겹치지 않도록 위쪽을 잘라 냅니다.
+        const Positioned(
+          top: -48,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Image(
+            image: AssetImage(placeMapAsset),
+            fit: BoxFit.cover,
+          ),
         ),
-        ColoredBox(color: Color(0x731E2820)),
-        Positioned(left: 170, top: 78, child: _Pin('1', filled: true)),
-        Positioned(left: 275, top: 118, child: _Pin('2')),
-        Positioned(left: 65, top: 118, child: _Pin('3')),
-        Positioned(left: 196, top: 148, child: _UserDot()),
+        const ColoredBox(color: Color(0x731E2820)),
+        // 핀은 safe-area와 헤더(제목 56 + 검색창 44) 아래에 둡니다.
+        Positioned(left: 170, top: contentTop + 10, child: const _Pin('1', filled: true)),
+        Positioned(left: 275, top: contentTop + 44, child: const _Pin('2')),
+        Positioned(left: 65, top: contentTop + 44, child: const _Pin('3')),
+        Positioned(left: 196, top: contentTop + 74, child: const _UserDot()),
       ],
     );
   }
