@@ -223,6 +223,7 @@ class _ConfirmBodyState extends State<_ConfirmBody> {
   String? _message;
 
   Future<void> _confirm() async {
+    if (_busy) return;
     final uid = widget.deps.auth.currentUid;
     if (uid == null) return;
     setState(() => _busy = true);
