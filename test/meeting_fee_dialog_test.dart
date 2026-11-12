@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_proj/core/theme/app_theme.dart';
 import 'package:flutter_proj/data/gateways.dart';
+import 'package:flutter_proj/models/app_user.dart';
 import 'package:flutter_proj/router/app_router.dart';
 import 'package:flutter_proj/router/app_routes.dart';
 import 'package:flutter_proj/router/open_launch.dart';
