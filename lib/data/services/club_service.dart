@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_proj/core/accounting.dart';
 import 'package:flutter_proj/core/attendance.dart';
 import 'package:flutter_proj/core/club_access.dart';
 import 'package:flutter_proj/core/kst.dart';
@@ -432,16 +433,20 @@ class FirebaseClubService implements ClubGateway {
     final events = uniqueMeetings(
       await _mapDocs(_clubs.doc(clubId).collection('events'), _eventFrom),
     );
-    final activities = await _mapDocs(
-      _clubs.doc(clubId).collection('activities'),
-      (doc) => ActivityItem(
-        id: doc.id,
-        title: doc.data()['title'] as String? ?? '',
-        subtitle: doc.data()['subtitle'] as String? ?? '',
-        amount: (doc.data()['amount'] as num?)?.toInt() ?? 0,
-        amountNote: doc.data()['amountNote'] as String? ?? '',
-      ),
-    );
+    // 홈 최근 기록은 회계 장부에서 바로 만듭니다(#15).
+    // 장부를 읽을 수 없는 경우(권한 등)에도 홈 전체가 실패하지 않게 비워 둡니다.
+    var activities = <ActivityItem>[];
+    try {
+      final ledgerSnap = await _clubs
+          .doc(clubId)
+          .collection('ledger')
+          .orderBy('occurredAt', descending: true)
+          .limit(5)
+          .get();
+      activities = recentLedgerActivities(ledgerSnap.docs.map(_ledgerFrom));
+    } on FirebaseException catch (error) {
+      if (error.code != 'permission-denied') rethrow;
+    }
     final notices = await _mapDocs(
       _clubs.doc(clubId).collection('notices'),
       (doc) => ClubNotice(
